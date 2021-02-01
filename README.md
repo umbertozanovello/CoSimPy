@@ -15,7 +15,7 @@ The library has been developed with Python 3.7. and tested on previous versions 
 
 ### Prerequisites
 
-The library uses the follwong additional packages:
+The library uses the following additional packages:
 
 - [numpy](https://numpy.org/) (>=1.15.2)
 - [matplotlib](https://matplotlib.org/) (>=3.0.0)
