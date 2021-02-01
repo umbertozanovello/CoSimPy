@@ -1,6 +1,6 @@
 # CoSimPy
 
-CoSimPy is an open source Pyhton library aiming to combine results from electromagnetic (EM) simulation with circuits analysis through a co-simulation environment.
+CoSimPy is an open source Pyhton library aiming to combine results from electromagnetic (EM) simulations with circuit analysis through a co-simulation environment.
 
 ## Summary
 
