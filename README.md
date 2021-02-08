@@ -26,7 +26,7 @@ The package versions reported in brackets represent the oldest releases with whi
 
 ### Installing
 
-With [pip](https://pypi.org/project/pip/)  (coming soon...):
+With [pip](https://pypi.org/project/pip/) (https://pypi.org/project/cosimpy/):
 ```
 pip install cosimpy
 ```
