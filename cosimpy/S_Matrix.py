@@ -599,6 +599,9 @@ class S_Matrix():
             
             comments = "".join(data[:comm_rows])
             data = data[comm_rows:]
+            
+            for r,d in enumerate(data):
+                data[r] = d.split("!")[0]
              
             if len(data) % n_f != 0: #Check that each frequency value corresponds to the same number of rows
                 raise ValueError("Impossible to fix the touchstone file")
