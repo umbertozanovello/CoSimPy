@@ -1,6 +1,6 @@
+import numpy as np
 from .S_Matrix import S_Matrix
 from .EM_Field import EM_Field
-import numpy as np
 
 class RF_Coil():
 

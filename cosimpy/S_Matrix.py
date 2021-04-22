@@ -4,13 +4,24 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.interpolate import make_interp_spline
 from copy import copy
+import warnings
+
+def warning_format(message, category, filename, lineno, file=None, line=None):
+    return '\n%s: Line %s - WARNING - %s\n' % (filename.split("/")[-1], lineno, message)
+warnings.formatwarning = warning_format
 
 eps = 1e-10
 
 class S_Matrix():
 
-    def __init__(self, S, freqs, z0=50):
+    def __init__(self, S, freqs, z0=50, **kwarg):
         
+        self.__kwarg = kwarg
+        if "info_warnings" in self.__kwarg.keys() and self.__kwarg["info_warnings"]==True:
+            self.__info_warnings = True
+        else:
+            self.__info_warnings = False
+            
         if not isinstance(S, np.ndarray): 
             raise TypeError("S matrix can only be np.ndarray")
         elif not isinstance(freqs, np.ndarray) and not isinstance(freqs, list): 
@@ -24,7 +35,16 @@ class S_Matrix():
         elif len(freqs) != S.shape[0]:
              raise TypeError("The frequencies list is not compatible with the S matrix first dimension")
         elif (np.round(np.abs(S),6) > 1).any():
-              raise ValueError("At least one S parameter is higher than one")
+            warnings.warn("An S parameter higher than one has been found. Results could be unphysical at least at one frequency value")
+            if self.__info_warnings:
+                print("\nMax |S_ij|:\n")
+                print(np.max(np.abs(S)))
+        elif (np.round(np.real(np.linalg.eigvals(np.eye(S.shape[1]) - S @ np.conjugate(np.transpose(S,axes=[0,2,1])))),6) < 0).any():
+            warnings.warn("The S matrix seems to be unphysical at least at one frequency value.")
+            if self.__info_warnings:
+                print("\nEigenvalues of II - S^H @ S:\n")
+                print(np.real(np.linalg.eigvals(np.eye(S.shape[1]) - S @ np.conjugate(np.transpose(S,axes=[0,2,1])))))
+
 
         self.__S = np.array(S,dtype = "complex")
         self.__f = np.array(freqs) #Hz
@@ -436,18 +456,18 @@ class S_Matrix():
 
             if mask_notSolved.any():
                 notSolved_idx = np.where(mask_notSolved)[0]
-                flagAcc = False #It becomes True if one or more original values should be changed by eps to avoid errors
-                flagEff = False #It becomes True if procedure B is not effective for at least one time
                 for idx in notSolved_idx:
                     S_0_extr = np.expand_dims(S_0[idx],axis=0)
                     S_C_extr = np.copy(other.__S)[idx]
                     
-                    #I look for couple of rows i and j where row i is maed of zeros except for 1 at j column and
+                    #I look for couple of rows i and j where row i is made of zeros except for 1 at j column and
                     #row j is zeros except 1 at column i. This causes the S_Matrix.getZMatrix() method to return error
                     idxs_one = np.vstack(np.where(S_C_extr==1)).T
-                    prev_idx = np.array([None, None])
+                    prev_idxs = -1 * np.ones((1,2))
+
                     for idx_one in idxs_one:
-                        if (idx_one[::-1] != prev_idx).all():
+
+                        if (idx_one[::-1] != prev_idxs).any(axis=1).all():
                             r1 = np.zeros((other.__nPorts))
                             r2 = np.zeros((other.__nPorts))
                             r1[idx_one[1]] = 1
@@ -455,9 +475,9 @@ class S_Matrix():
                             if (S_C_extr[idx_one[0]] == r1).all() and (S_C_extr[idx_one[1]] == r2).all():
                                 S_C_extr[idx_one[0], idx_one[1]] = 1 - eps
                                 S_C_extr[idx_one[1], idx_one[0]] = 1 - eps
-                                if not flagAcc:
-                                    print("__resSMatrix WARNING: The matrices are singular at least at one frequency value. Results can be inaccurate at those frequencies")
-                        prev_idx = idx_one
+                                warnings.warn("The matrices are singular at least at one frequency value. Results can be inaccurate at those frequencies")
+                                
+                        prev_idxs = np.append(prev_idxs, np.expand_dims(idx_one,0), axis=0)
                         
                     S_0_extr = S_Matrix(S_0_extr, [None], self.__z0) #Fictitious S_Matrix instance to use getZMatrix method
                     S_C_extr = np.expand_dims(S_C_extr, axis=0)
@@ -481,11 +501,14 @@ class S_Matrix():
                     
                     except np.linalg.LinAlgError:
 
-                        if not flagEff:
-                            print("__resSMatrix WARNING: The matrices are singular at least at one frequency value. NaN is returned at those frequencies")
-                            flagEff = True
-        
-        S_res = S_Matrix(S_res, self.__f, other.__z0[self.nPorts:])
+                        warnings.warn("The matrices are singular at least at one frequency value. NaN is returned at those frequencies")
+                        if self.__info_warnings:
+                                    print("\nS0:\n")
+                                    print(S_0_extr)
+                                    print("\nSc:\n")
+                                    print(S_C_extr)
+                                    
+        S_res = S_Matrix(S_res, self.__f, other.__z0[self.nPorts:], **self.__kwarg)
         
         return S_res
         
@@ -528,7 +551,7 @@ class S_Matrix():
             idx = np.where(self.__f == freq)[0][0]
         else:
             idx = np.argmin(np.abs(self.__f - freq))
-            print("WARNING: %e Hz is not contained in the frequencies list. %e Hz is returned instead" %(freq, self.__f[idx]))
+            warnings.warn("%e Hz is not contained in the frequencies list. %e Hz is returned instead" %(freq, self.__f[idx]))
         
         return idx
     
@@ -574,7 +597,7 @@ class S_Matrix():
     
     
     @staticmethod
-    def importTouchstone(filename, fmt='R_I', freqUnit='MHz', fix=False, n_f=None):
+    def importTouchstone(filename, fmt='R_I', freqUnit='MHz', z0=50, fix=False, n_f=None, **kwarg):
 
         if fmt not in ['R_I', 'Mag_Deg', 'dB_Deg', 'Mag_Rad', 'dB_Rad']:
             raise ValueError("fmt is not valid")
@@ -589,14 +612,17 @@ class S_Matrix():
             
             comm_rows = 0
             fc = data[0][0]
-            while fc in ["!", "#"]:
+            while fc.strip() in ["!", "#", ""]:
                 comm_rows += 1
                 fc = data[comm_rows][0]
             
             comments = "".join(data[:comm_rows])
             data = data[comm_rows:]
-             
-            if len(data) % n_f != 0: #Check that each frequency value cooresponds to the same number of rows
+            
+            for r,d in enumerate(data):
+                data[r] = d.split("!")[0]
+
+            if len(data) % n_f != 0: #Check that each frequency value corresponds to the same number of rows
                 raise ValueError("Impossible to fix the touchstone file")
             else:
                 n_r = int(len(data) / n_f)
@@ -605,9 +631,9 @@ class S_Matrix():
             
             for i in range(n_r-1):
                 new_data = np.core.defchararray.add(new_data, data[i+1::n_r])
-            
             new_data = np.chararray.split(new_data)
             new_data = np.stack(new_data,axis=0)
+            
             new_data = new_data.astype(np.float)
             
             filename = filename.split(".")
@@ -616,6 +642,8 @@ class S_Matrix():
             np.savetxt(filename, new_data, header=comments, fmt="%.6f", delimiter="\t")
             
         data = np.loadtxt(filename, comments=["#","!"])
+        data = np.atleast_2d(data)
+        
         if freqUnit == 'Hz':
             freq = data[:,0]
         else:
@@ -636,8 +664,8 @@ class S_Matrix():
             s_parameters = (10**(s_parameters_A/20)) * np.exp(1j*s_parameters_B)
 
         s_parameters = np.reshape(s_parameters, (freq.size, np.int(np.sqrt(s_parameters_A.shape[-1])),-1))
-        
-        return S_Matrix(s_parameters, freq)
+
+        return S_Matrix(s_parameters, freq, z0, **kwarg)
     
     
     @staticmethod
@@ -732,7 +760,7 @@ class S_Matrix():
         
         #Try to avoid some possible Singular Matrix errors
         if (SL_1.__S==1).any() or (SL_2.__S==1).any() or (ST.__S==1).any():
-            print("sMatrixTnetwork WARNING: Singular matrix error detected at least at one frequency value. Inaccurate values can be obtained at those frequencies")
+            warnings.warn("Singular matrix error detected at least at one frequency value. Inaccurate values can be obtained at those frequencies")
             SL_1.__S[SL_1.__S==1] = 1 - eps
             SL_2.__S[SL_2.__S==1] = 1 - eps
             ST.__S[ST.__S==1] = 1 - eps
@@ -773,7 +801,7 @@ class S_Matrix():
         
         #Try to avoid some possible Singular Matrix errors
         if (ST_1.__S==-1).any() or (ST_2.__S==-1).any() or (SL.__S==-1).any():
-            print("sMatrixPInetwork WARNING: Singular matrix error detected at least at one frequency value. Inaccurate values can be obtained at those frequencies")
+            warnings.warn("Singular matrix error detected at least at one frequency value. Inaccurate values can be obtained at those frequencies")
             ST_1.__S[ST_1.__S==-1] = -1 + eps
             ST_2.__S[ST_2.__S==-1] = -1 + eps
             SL.__S[SL.__S==-1] = -1 + eps

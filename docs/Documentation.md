@@ -1,5 +1,5 @@
 # CoSimPy
-CoSimPy is an open source Pyhton library aiming to combine results from electromagnetic (EM) simulations with circuit analysis through a co-simulation environment.
+CoSimPy is an open source Pyhton library aiming to combine results from electromagnetic (EM) simulation with circuit analysis through a co-simulation environment.
 The library is developed specifically to deal with Magnetic Resonance Imaging (MRI) radiofrequency (RF) coils. Nevertheless, it is sufficiently general to be adopted in any context involving EM multiport simulations.
 
 The library is composed of three different classes:
@@ -53,11 +53,11 @@ from cosimpy import *
 n_p = 5 #Number of ports
 n_f = 10 #Number of frequency values 
 
-frequencies = np.linspace(50e6, 150e6, n_f, endpoint=False)
+frequencies = np.linspace(50e6, 150e6, n_f, endpoint=False))
 
 s_real = np.random.rand(n_f,n_p,n_p)
 s_imag = np.random.rand(n_f,n_p,n_p)
-s = (s_real + 1j*s_imag) / np.max(np.abs(s_real + 1j*s_imag))
+s = (s_real + 1j*s_imag) /np.max(np.abs(s_real + 1j*s_imag))
 
 S_Matrix(s, frequencies)
 
@@ -531,8 +531,10 @@ Parameters
   * 'Mag_Deg' : Magnitude and phase in degrees
   * 'dB_Deg' : Magnitude in decibel and phase in degrees
   * 'Mag_Rad' : Magnitude and phase in radians
-  * 'dB_Rad' : Magnitude in decibel and phase in radians
-Default is 'R_I'
+  * 'dB_Rad' : Magnitude in decibel and phase in radians<br>
+  
+  Default is 'R_I'
+  
 * freqUnit : *string*, *optional*<br>
 *string* defining the measurement unit of the frequency values reported in the *touchstone* file. It can be equal to 'Hz' or 'MHz'.  Default is 'MHz'
 * fix : *bool*, *optional* <br>
@@ -959,7 +961,7 @@ Returns
 * EM_Field : *EM_Field* <br>
 *EM_Field* obtained from the EM results exported from CST<sup>®</sup> STUDIO SUITE. `EM_Field.properties` is a dictionary based on the `**kwargs`parameters passed to the method
 
-#### `importFields_s4l(directory, freqs, nPorts, Pinc_ref=1, b_multCoeff=1, pkORrms='rms', imp_efield=True, imp_bfield=True, **kwargs)`
+#### `importFields_s4l(directory, freqs, nPorts, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, **kwargs)`
 
 Static method which returns an *EM_Field* instance importing the data from [Sim4Life](https://zmt.swiss/sim4life/) standard export .mat files. Results files must be collected in a dedicated directory and named as <field_str/>_port<n/>.mat where <field_str/> can be either 'efield', for the electric field results, or 'bfield' for magnetic flux density field results and <n/> is the number of the ports supplied, in the simulation environment, to generate the relevant EM field. All the EM quantities must be exported on the same regular grid.
 
@@ -978,7 +980,7 @@ magnitude of the power incident at the ports which generate the EM fields.  Defa
 * b_multCoeff : *float*, *optional* <br>
 multiplicative factor for the magnetic results. In case the exported results are magnetic field values (A/m), it has to be equal to 4&pi;10<sup>-7</sup> to obtain magnetic flux density values in tesla. Default is 1
 * pkORrms : *string*, *optional* <br>
-if 'pk' the values contained in the result files are interpreted as peak values, if 'rms' they are interpreted as rms values. Default is 'rms'
+if 'pk' the values contained in the result files are interpreted as peak values, if 'rms' they are interpreted as rms values. Default is 'pk'
 * imp_efield : *bool*, *optional* <br>
 if `True` the method imports the results relevant to the electric field. Default is `True`
 * imp_bfield : *bool*, *optional* <br>

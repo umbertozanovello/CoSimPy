@@ -471,7 +471,7 @@ class EM_Field():
 
 
     @staticmethod
-    def importFields_s4l(directory, freqs, nPorts, Pinc_ref=1, b_multCoeff=1, pkORrms='rms', imp_efield=True, imp_bfield=True, **kwargs):
+    def importFields_s4l(directory, freqs, nPorts, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, **kwargs):
         
         if not imp_efield and not imp_bfield:
             raise ValueError("At least one among imp_efield and imp_bfield has to be True")
@@ -505,8 +505,8 @@ class EM_Field():
 
                     e_field = np.empty((len(freqs),nPorts,3,n), dtype="complex")
                 
-                for f in range(freqs):
-                    e_field[f,port,:,:] = np.moveaxis(data["Snapshot%d"%port],-1,0)
+                for f in range(len(freqs)):
+                    e_field[f,port,:,:] = np.moveaxis(data["Snapshot%d"%f],-1,0)
                     
             if imp_bfield:    
                 
