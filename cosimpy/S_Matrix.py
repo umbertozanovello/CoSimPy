@@ -55,6 +55,13 @@ class S_Matrix():
             self.__z0 = z0 * np.ones(self.__nPorts)
         else:
             self.__z0 = np.array(z0)
+        
+        if (np.real(self.__z0) <= 0).any():
+            raise ValueError("The real part of all the port impedances has to be higher than zero")
+        elif (np.real(self.__z0) != self.__z0).any():
+            warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
+            self.__z0 = np.real(self.__z0)
+                
     
     
     @property
@@ -562,12 +569,16 @@ class S_Matrix():
         if isinstance(z0, list) or isinstance(z0, np.ndarray):
             if len(z0) != Z.shape[-1]:
                 raise ValueError("z0 has to be a list or numpy array with a length equal to the number of ports associated with the S matrix")
-            
-            y0 = np.diag(1./np.array(z0))
-        
         else:
+            z0 = z0 * np.ones(Z.shape[-1])
             
-            y0 = 1./z0 * np.eye(Z.shape[-1])
+        if (np.real(z0) <= 0).any():
+            raise ValueError("The real part of all the port impedances has to be higher than zero")
+        elif (np.real(z0) != z0).any():
+            warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
+            z0 = np.real(z0)
+            
+        y0 = np.diag(1./np.array(z0))
         
         y0sqrt = np.sqrt(y0)
         
@@ -582,12 +593,16 @@ class S_Matrix():
         if isinstance(y0, list) or isinstance(y0, np.ndarray):
             if len(y0) != Y.shape[-1]:
                 raise ValueError("y0 has to be a list or numpy array with a length equal to the number of ports associated with the S matrix")
-            
-            z0 = np.diag(1./np.array(y0))
-        
         else:
+            y0 = y0 * np.ones(Y.shape[-1])
+        
+        if (np.real(y0) <= 0).any():
+            raise ValueError("The real part of all the port impedances has to be higher than zero")
+        elif (np.real(y0) != y0).any():
+            warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
+            y0 = np.real(y0)    
             
-            z0 = 1./y0 * np.eye(Y.shape[-1])
+        z0 = np.diag(1./np.array(y0))
         
         z0sqrt = np.sqrt(z0)
         
@@ -673,7 +688,9 @@ class S_Matrix():
         
         if Rvalue < 0 or Cvalue <= 0:
             raise ValueError("Rvalue and Cvalue must be equal or higher than zero")
-
+        elif np.real(z0) != z0:
+            warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
+            z0 = np.real(z0)
 
         f = np.array(freqs)
         n_f = len(f)
@@ -690,7 +707,10 @@ class S_Matrix():
         
         if Rvalue < 0 or Lvalue < 0:
             raise ValueError("Rvalue and Lvalue must be equal or higher than zero")
-        
+        elif np.real(z0) != z0:
+            warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
+            z0 = np.real(z0)
+
         f = np.array(freqs)
         n_f = len(f)
         
@@ -706,7 +726,10 @@ class S_Matrix():
         
         if Rvalue < 0 or Cvalue <= 0:
             raise ValueError("Rvalue and Cvalue must be equal or higher than zero")
-            
+        elif np.real(z0) != z0:
+            warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
+            z0 = np.real(z0)
+    
         f = np.array(freqs)
         n_f = len(f)
         
@@ -724,7 +747,9 @@ class S_Matrix():
         
         if Rvalue < 0 or Lvalue < 0:
             raise ValueError("Rvalue and Lvalue must be equal or higher than zero")
-
+        elif np.real(z0) != z0:
+            warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
+            z0 = np.real(z0)
 
         f = np.array(freqs)
         n_f = len(f)
@@ -751,7 +776,7 @@ class S_Matrix():
 
         if isinstance(z0,list) or isinstance(z0,np.ndarray):
             if len(z0) != 2:
-                raise ValueError("z0 must be a complex value or a list with length equal to 2")
+                raise ValueError("z0 must be a real value or a real values list with length equal to 2")
             z0 = np.array(z0)
         else:
             z0 = z0*np.ones(2)
@@ -792,7 +817,7 @@ class S_Matrix():
         
         if isinstance(z0,list) or isinstance(z0,np.ndarray):
             if len(z0) != 2:
-                raise ValueError("z0 must be a complex value or a list with length equal to 2")
+                raise ValueError("z0 must be a real value or a real values list with length equal to 2")
             y0 = 1. / np.array(z0)
         else:
             y0 = (1./z0) * np.ones(2)
