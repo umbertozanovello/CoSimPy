@@ -25,10 +25,16 @@ N<sub>f</sub> *numpy ndarray* representing the frequency values, in hertz, over 
 number of frequency values over which the scattering parameters are defined (N<sub>f</sub>)
 * `S_Matrix.nPorts` : *int* <br>
 number of ports associated with the S Matrix (N<sub>P</sub>)
+* `S_Matrix._S0` : *S_Matrix* <br>
+*S_Matrix* associated with the unconnected S Matrix. This property is used to store the *S_Matrix* of the unconnected S matrix if a connection is performed. If the *S_Matrix* has never been connected to any external network, this property will be `None`
+* `S_Matrix._p_incM` : *int* <br>
+This property is used to store the homonym output of the `_singlePortConnSMatrix` or `_fullPortsConnSMatrix` methods when a connection is performed. If the *S_Matrix* has never been connected to any external network, this property will be `None`
+* `S_Matrix._phaseM` : *int* <br>
+This property is used to store the homonym output of the `_singlePortConnSMatrix` or `_fullPortsConnSMatrix` method when a connection is performed. If the *S_Matrix* has never been connected to any external network, this property will be `None`
 
 ### Methods
 
-#### `__init__(self, S, freqs, z0=50)`
+#### `__init__(self, S, freqs, z0=50, **kwarg)`
 
 It creates an *S_Matrix* instance.
 
@@ -287,6 +293,69 @@ Returns
 * Y : *numpy ndarray* <br>
   N<sub>f</sub> 🞩 N<sub>P</sub> 🞩 N<sub>P</sub> *numpy ndarray* of admittance parameters. N<sub>f</sub> is the number of frequency values over which `self` is defined and N<sub>P</sub> is the number of ports
 
+#### `compVI(self)`
+
+The method returns the voltages and currents at the S matrix ports when 1 W power is incident to one port and the other ports are closed over their characteristic impedance. If a connection with an external network has been performed and connection data have been stored, it also returns voltages and currents at the ports of the S matrix before the last connection (*i.e* unconnected system in the figure below).
+
+![image](./images/compVI.png)
+
+Parameters
+
+* self : *S_Matrix*
+
+Returns
+
+* v_sup : *numpy ndarray* <br>
+  N<sub>f</sub> 🞩 N<sub>P</sub> 🞩 N<sub>P</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which `self` is defined and N<sub>P</sub> is the number of ports of `self`. `v_sup[i,j,k]` represents the voltage, at a frequency equal to `self.frequencies[i]`, at the j-port when 1 W power is incident to the k-port and all the other ports are closed over their characteristic load
+* i_sup : *numpy ndarray* <br>
+  N<sub>f</sub> 🞩 N<sub>P</sub> 🞩 N<sub>P</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which `self` is defined and N<sub>P</sub> is the number of ports of `self`. `i_sup[i,j,k]` represents the current, at a frequency equal to `self.frequencies[i]`, at the j-port when 1 W power is incident to the k-port and all the other ports are closed over their characteristic load. If the current phase is between $-\pi/2$ and $\pi/2$, the current is entering the relevant port. Otherwise, the current is exiting the relevant port
+* v0 : *numpy ndarray*, *optional* <br>
+  N<sub>f</sub> 🞩 N<sub>P,0</sub> 🞩 N<sub>P</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which `self` is defined, N<sub>P,0</sub> is the number of ports of the S matrix before the last connection with an external network and N<sub>P</sub> is the number of ports of `self`. `v0[i,j,k]` represents the voltage, at a frequency equal to `self.frequencies[i]`, at the j-port of the S matrix before the last connection with an external network when 1 W power is incident to the k-port of `self` and all its other ports are closed over their characteristic load
+* i0 : *numpy ndarray*, *optional* <br>
+  N<sub>f</sub> 🞩 N<sub>P,0</sub> 🞩 N<sub>P</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which `self` is defined, N<sub>P,0</sub> is the number of ports of the S matrix before the last connection with an external network and N<sub>P</sub> is the number of ports of `self`. `i0[i,j,k]` represents the current, at a frequency equal to `self.frequencies[i]`, at the j-port of the S matrix before the last connection with an external network when 1 W power is incident to the k-port of `self` and all its other ports are closed over their characteristic load. If the current phase is between $-\pi/2$ and $\pi/2$, the current is entering the relevant port. Otherwise, the current is exiting the relevant port
+
+#### `powerBalance(self, p_inc)`
+
+The method returns the power accepted by the system when each port of the S matrix is supplied according to the incident powers passed in the p_inc list. If a connection with an external network has been performed and connection data have been stored, it also returns the power accepted by the S matrix before the last connection (*i.e* unconnected system in the figure below). The difference of the two accepted powers reflects the losses in the connected network
+
+![image](./images/powerBalance.png)
+
+Parameters
+* self : *S_Matrix*
+* p_inc : *list*, *numpy ndarray* <br>
+  *list* or *numpy ndarray* with length equal to the number of ports of `self`. `p_inc[i]` is the power incident to the i-th port of `self` to be considered for the power balance computation
+
+Returns
+
+* p_acc_1 : *numpy ndarray* <br>
+  *numpy ndarray* with length equal to the number of frequencies over which `self` is defined. `p_acc_1[i]` is the power accepted by the system at a frequency equal to `self.frequencies[i]` when all the S matrix ports are supplied according to the incident powers listed in the p_inc argument
+* p_acc_2 : *numpy ndarray*, *optional* <br>
+  *numpy ndarray* with length equal to the number of frequencies over which `self` is defined. `p_acc_2[i]` is the power accepted by the system, before the last connection with external network, at a frequency equal to `self.frequencies[i]` when all the S matrix ports of `self` (*i.e.* the connected system) are supplied according to the incident powers listed in the p_inc argument
+
+#### `healSMatrix(self, report=False, f_tol=1e-10, rdiff=None, **kwarg)`
+
+For a passive system, the matrix defined as $II - S^HS$ is positive semi-definite. Due to numerical errors, it could happen that the given S matrix does not satisfy this constraint. This methods tries to compute a new S matrix, starting from the original `self.S` S matrix, being compliant with the above constraint.
+
+Parameters
+* self : *S_Matrix*
+* report : *bool*, *optional* <br>
+  if `True` the method returns a report relevant to the new computed S matrix
+* f_tol : *float*, *optional* <br>
+  absolute tolerance (in max-norm) for the residual related to the Newton-Krylov algorithm adopted to compute the new S matrix. Default is 1e-10
+* rdiff : *float*, *optional* <br>
+  relative step size to use in numerical differentiation related to the Newton-Krylov algorithm adopted to compute the new S matrix. Default is `None`
+
+Returns
+
+* S_Matrix : *S_Matrix* <br>
+  *S_Matrix* obtained from the recomputed S matrix
+* *dict*, *optional* <br>
+  dictionary with the following keys:
+    - *max_abs_Sdiff* : *numpy  ndarray*<br>
+      *numpy  ndarray* with a length equal to the number of frequency values over which the S matrix is defined. For each frequency, it reports the maximum absolute value of the difference between the original and recomputed S parameters
+    - *min_eig_val* : *numpy  ndarray*<br>
+      *numpy  ndarray* with a length equal to the number of frequency values over which the S matrix is defined. For each frequency, it reports the minimum eigenvalue of the matrix defined as $II - S^HS$ where $S$ is the recomputed S matrix
+
 #### `_singlePortConnSMatrix(self, networks, comp_Pinc=False)`
 
 The method performs the cascade connection between `self` and the *S_Matrix* instances contained in `networks` *list*.
@@ -307,10 +376,10 @@ Returns
 * S_res : *S_Matrix* <br>
   The *S_Matrix* which results from the connection. The *S_Matrix* is defined over the same frequency values of `self` and has a number of ports equal to N<sub>P</sub> - N<sub>T</sub> + &sum;<sub>i=1</sub><sup>N<sub>T</sub></sup>(N<sub>p,i</sub> - 1) where N<sub>P</sub> is the number of ports of `self`, N<sub>T</sub> is the number of *S_Matrix* instances in `networks` and N<sub>p,i</sub> is the number of ports of the i-th *S_Matrix* of `networks`. The n-th port impedance of S_res is equal to the impedance of the relevant port of `self` if it derives from a `None` element of `networks`. Otherwise, it is equal to the impedance of the relevant port of the *S_Matrix* of `networks` from which the port derives
 * p_incM : *numpy ndarray*, *optional* <br>
-  N<sub>f</sub> 🞩 N<sub>Pout</sub> 🞩 N<sub>P</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which `self` is defined, N<sub>Pout</sub> is the number of ports of the returned *S_Matrix* and N<sub>P</sub> is the number of ports of `self`. PincM[i,j,k] represents the magnitude of the incident power at the k-port of `self` when the j-port of the output *S_Matrix* is supplied with 1 W incident power at a frequency equal to `self.frequencies[i]`
+  N<sub>f</sub> 🞩 N<sub>Pout</sub> 🞩 N<sub>P</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which `self` is defined, N<sub>Pout</sub> is the number of ports of the returned *S_Matrix* and N<sub>P</sub> is the number of ports of `self`. `PincM[i,j,k]` represents the magnitude of the incident power at the k-port of `self` when the j-port of the output *S_Matrix* is supplied with 1 W incident power at a frequency equal to `self.frequencies[i]`
 * phaseM : *numpy ndarray*, *optional* <br>
   N<sub>f</sub> 🞩 N<sub>Pout</sub> 🞩 N<sub>P</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which `self` is defined, N<sub>Pout</sub> is the number of ports of the returned *S_Matrix* and N<sub>P</sub> is the number of ports of `self`. 
-  phaseM[i,j,k] represents the 'phase' of the incident power at the k-port of `self` when the j-port of the output *S_Matrix* is supplied with 1 W incident power at a frequency equal to `self.frequencies[i]`
+  `phaseM[i,j,k]` represents the 'phase' of the incident power at the k-port of `self` when the j-port of the output *S_Matrix* is supplied with 1 W incident power at a frequency equal to `self.frequencies[i]`
 
 Example
 ```python
@@ -517,9 +586,9 @@ Returns
 * S_Matrix : *S_Matrix* <br>
 *S_Matrix* obtained from the conversion of the admittance parameters and defined over the frequency values listed in `freqs`. The port impedances of the returned *S_Matrix* are obtained from the port admittances given by the relevant method parameter
 
-#### `importTouchstone(filename, fmt='R_I', freqUnit='MHz', fix=False, n_f=None)`
+#### `importTouchstone(filename, fmt='RI', freqUnit='MHz', param='S', fix=False, n_f=None, **kwarg)`
 
-*static method* used to return an *S_Matrix* importing the scattering parameters from a *Touchstone* file.
+*static method* used to return an *S_Matrix* importing the scattering parameters from a *Touchstone* file. Independently of the number of ports, the method assumes the S parameters are given according to a row-wise order: N11, N12, ..., N1n, N21, N22...
 
 Parameters
 
@@ -527,25 +596,27 @@ Parameters
 *string* reporting the *touchstone* file name
 * fmt : *string*, *optional* <br>
 *string* defining the format of the scattering parameters reported in the *touchstone* file. The string can be equal to:
-  * 'R_I' : Real and Imaginary parts
-  * 'Mag_Deg' : Magnitude and phase in degrees
-  * 'dB_Deg' : Magnitude in decibel and phase in degrees
-  * 'Mag_Rad' : Magnitude and phase in radians
-  * 'dB_Rad' : Magnitude in decibel and phase in radians<br>
+  * 'RI' : Real and Imaginary parts
+  * 'MA_Deg' : Magnitude and phase in degrees
+  * 'DB_Deg' : Magnitude in decibel and phase in degrees
+  * 'MA_Rad' : Magnitude and phase in radians
+  * 'DB_Rad' : Magnitude in decibel and phase in radians<br>
   
-  Default is 'R_I'
+  Default is 'RI'
   
 * freqUnit : *string*, *optional*<br>
-*string* defining the measurement unit of the frequency values reported in the *touchstone* file. It can be equal to 'Hz' or 'MHz'.  Default is 'MHz'
+*string* defining the measurement unit of the frequency values reported in the *touchstone* file. It can be equal to 'Hz', 'KHz, 'MHz' or 'GHz'.  Default is 'MHz'
+* param : *string*, *optional*<br>
+*string* defining the parameter type reported in the *Touchstone* file. It can be equal to 'S', 'Z, 'Y'.  Default is 'S'
 * fix : *bool*, *optional* <br>
-if `True` the method tries to fix the *touchstone* file where more than one row of scattering parameters corresponds to each single frequency value. If `True` the method returns a new *touchstone* file in the same folder of the original one and named as 'filename_fixed.*'. Default is `False`
+the method expects a *Touchstone* file where each row corresponds to a different frequency value. If the *Touchstone* file is not formatted according to this rule, setting this flag as `True` makes the method trying to 'fix' the *Touchstone* file. If `True` the method returns a new *Touchstone* file in the same folder of the original one and named as 'filename_fixed.*'. Default is `False`
 * n_f : *int*, *optional* <br>
-number of frequency values over which the scattering parameters reported in the *touchstone* file are defined. This parameter is mandatory if `fix=True` otherwise it can be `None` (default value)
+number of frequency values over which the scattering parameters reported in the *Touchstone* file are defined. This parameter is mandatory if `fix=True` otherwise it can be `None` (default value)
 
 Returns
 
 * S_Matrix : *S_Matrix* <br>
-*S_Matrix* obtained from the *touchstone* file
+*S_Matrix* obtained from the *Touchstone* file
 
 #### `sMatrixRCseries(Rvalue, Cvalue, freqs, z0=50)`
 
@@ -640,7 +711,7 @@ The 1-port S_Matrix of the longitudinal parameter of the T-network towards the s
 * ST : *S_Matrix* <br>
 The 1-port S_Matrix of the transversal parameter of the T-network
 * z0 : *int*, *float*, *list* or *numpy ndarray*, *optional*<br>
-port impedances in ohm. These can be given as a N<sub>P</sub> *list* or *numpy ndarray*. If all the ports share the same impedances, an *int* or *float* value can be passed as parameter. Default is 50 ohm
+port impedances in ohm. These can be given as a 2-element *list* or *numpy ndarray*. If all the ports share the same impedances, an *int* or *float* value can be passed as parameter. Default is 50 ohm
 
 ![image](./images/sMatrixTnetwork.png)
 
@@ -662,7 +733,7 @@ The 1-port S_Matrix of the transversal parameter of the PI-network towards the s
 * SL : *S_Matrix* <br>
 The 1-port S_Matrix of the longitudinal parameter of the PI-network
 * z0 : *int*, *float*, *list* or *numpy ndarray*, *optional*<br>
-port impedances. These can be given as a N<sub>P</sub> *list* or *numpy ndarray*. If all the ports share the same impedances, an *int* or *float* value can be passed as parameter. Default is 50 ohm
+port impedances. These can be given as a 2-element *list* or *numpy ndarray*. If all the ports share the same impedances, an *int* or *float* value can be passed as parameter. Default is 50 ohm
 
 ![image](./images/sMatrixPInetwork.png)
 
@@ -671,7 +742,7 @@ Returns
 * S_Matrix : *S_Matrix* <br>
 2-port *S_Matrix*, of the PI-network defined over the same frequency values over which ST_1, ST_2 and SL are defined. The impedances of the two ports are specified by the relevant method parameter
 
-#### `sMatrixTrLine(l, freqs, z0=50, c_f = 1, alpha=0)`
+#### `sMatrixTrLine(l, freqs, z0_line=50, c_f = 1, alpha=0, z0=50)`
 
 *static method* used to return an *S_Matrix* of a low-losses transmission line.
 
@@ -681,12 +752,14 @@ Parameters
 length, in meters, of the transmission line
 * freqs : *list*, *numpy ndarray*<br>
 *list*, *numpy ndarray* reporting the frequency values, in hertz, over which the returned *S_Matrix* is defined
-* z0 : *int*, *float*, *optional* <br>
-The characteristic impedance, in ohm, of the transmission line. Default is 50 ohm
+* z0_line : *int*, *float*, *optional* <br>
+characteristic impedance, in ohm, of the transmission line. Default is 50 ohm
 * c_f : *float*, *optional* <br
 ratio between the propagation velocity in the transmission line and the speed of light. Default is 1
 * alpha : *float*, *optional* <br>
-attenuating coefficient of the transmission line. Default is 0 
+attenuating coefficient of the transmission line. Default is 0
+* z0 : *int*, *float*, *list*, *numpy ndarray*, *optional* <br>
+port impedances. These can be given as a 2-element *list* or *numpy ndarray*. If all the ports share the same impedance value, an *int* or *float* value can be passed as parameter. Default is 50 ohm
 
 Returns
 
@@ -816,7 +889,45 @@ Parameters
 Returns
 
 * sens : *numpy ndarray* <br>
-N<sub>f</sub> 🞩 N<sub>P</sub> 🞩 2 🞩 N<sub>N</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which the sensitivity, expressed in tesla, are defined. N<sub>P</sub> is the number of ports of the device and N<sub>N</sub> is the number of spatial points over which the sensitivities are defined. `sens[i,k,j,n]` represents the B<sub>1</sub><sup>+</sup> (if `j` is equal to 0) or B<sub>1</sub><sup>-</sup> (if `j` is equal to 1) complex value at the frequency identified by the index `i`, generated by 1 W incident power at port `k` in the point identified by index `n`. The values along the last axis of the array follow a fortran-like index ordering (first index changing faster) considering a Cartesian coordinate system
+N<sub>f</sub> 🞩 N<sub>P</sub> 🞩 2 🞩 N<sub>N</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which the sensitivity, expressed in tesla, are defined. N<sub>P</sub> is the number of ports of the device and N<sub>N</sub> is the number of spatial points over which the sensitivities are defined. `sens[i,k,j,n]` represents the B<sub>1</sub><sup>+</sup> (if j is equal to 0) or B<sub>1</sub><sup>-</sup> (if j is equal to 1) complex value at the frequency identified by the index i, generated by 1 W incident power at port k in the point identified by index n. The values along the last axis of the array follow a fortran-like index ordering (first index changing faster) considering a Cartesian coordinate system
+
+#### `compPowDens(self, elCond=None, p_inc=None)`
+
+If the electric field is defined, the method returns the power density in W/m<sup>3</sup>.
+
+Parameters
+
+* self : *EM_Field*
+* elCond : *list*, *numpy ndarray*, *optional*
+*list* or *numpy ndarray* reporting the electrical conductivity associated with the 
+N<sub>N</sub> points over which the electric field is defined. If `None`, the method looks for the homonym property defined among the **kwargs of the class. Default is `None`
+* p_inc : *list*, *numpy ndarray*, *optional*
+*list* or *numpy ndarray* with a length equal to the number of ports of the device. `p_inc[i]` is the power incident to the i-th port considered for the power density computation. Default is `None`
+
+Returns
+
+* powDens : *numpy ndarray* <br>
+if p_inc is `None`: N<sub>f</sub> 🞩 N<sub>P</sub> x N<sub>N</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which the power density, expressed in W/m<sup>3</sup>, is defined. N<sub>P</sub> is the number of ports of the device and N<sub>N</sub> is the number of spatial points over which the power density is defined. `powDens[i,k,n]` represents the power density at the frequency identified by the index i, generated by 1 W incident power at port k with all the other ports closed over their characteristic impedance, in the point identified by index n. The values along the last axis of the array follow a Fortran-like index ordering (first index changing faster) considering a Cartesian coordinate system. If p_inc is not `None`: N<sub>f</sub> x N<sub>N</sub> *numpy ndarray* where the power density is computed in the N<sub>N</sub> spatial points at the N<sub>f</sub> frequency values when the device is supplied according to the p_inc list passed as argument to the method
+
+#### `compDepPow(self, voxVols, elCond=None, p_inc=None)`
+
+If the electric field is defined, the method returns the power, in watt, deposited in the voxels over which the electric field is defined
+
+Parameters
+
+* self : *EM_Field*
+* voxVols : *int*, *float*
+volume, in m<sup>3</sup>, of each voxel over which the electric field has been defined
+* elCond : *list*, *numpy ndarray*, *optional*
+*list* or *numpy ndarray* reporting the electrical conductivity associated with the 
+N<sub>N</sub> points over which the electric field is defined. If `None`, the method looks for the homonym property defined among the **kwargs of the class. Default is `None`
+* p_inc : *list*, *numpy ndarray*, *optional*
+*list* or *numpy ndarray* with a length equal to the number of ports of the device. p_inc[i] is the power incident to the i-th port considered for the power density computation. Default is `None`
+
+Returns
+
+* depPow : *numpy ndarray* <br>
+if p_inc is `None`: N<sub>f</sub> 🞩 N<sub>P</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which the deposited power, expressed in watt, is defined and N<sub>P</sub> is the number of ports of the device. `depPow[i,k]` represents the deposited power at the frequency identified by the index i, generated by 1 W incident power at port k with all the other ports closed over their characteristic impedance. If p_inc is not `None`: N<sub>f</sub> *numpy ndarray* where the deposited power is computed at the N<sub>f</sub> frequency values when the device is supplied according to the p_inc list passed as argument to the method
 
 #### `plotB(self, comp, freq, port, plane, sliceIdx, vmin=None, vmax=None)`
 
@@ -1094,7 +1205,7 @@ Parameters
 ![image](./images/singlePortConnSMatrix.png)
 
 * comp_Pinc : *bool*, *optional* <br>
-if `True` the method returns an *RF_Coil* instance whose `em_field` property is updated according to the new connections. If `False` (default value), the `em_field` property of the returned *RF_Coil* is `None`
+if `True` and the `self.em_field` property is not `None`, the method returns an *RF_Coil* instance whose `em_field` property is updated according to the new connections. If the `self.em_field` property is `None`, the `em_field` property of the returned *RF_Coil* is `None` but connection data are stored in the new *RF_Coil*. If `False` (default value), the `em_field` property of the returned *RF_Coil* is `None` and no connection data are stored
 
 Returns
 
@@ -1111,9 +1222,39 @@ Parameters
 * other : *S_Matrix* <br>
 *S_Matrix* instance defined over the same frequency values of `self.s_matrix` and with a number of ports higher than those of `self`. In the returned *RF_Coil*, the first N<sub>P</sub> ports of `other` are connected with the N<sub>P</sub> ports of `self` and must share the same port impedances
 * comp_Pinc : *bool*, *optional* <br>
-if `True` the method returns an *RF_Coil* instance whose `em_field` property is updated according to the new connections. If `False` (default value), the `em_field` property of the returned *RF_Coil* is `None`
+if `True` and the `self.em_field` property is not `None`, the method returns an *RF_Coil* instance whose `em_field` property is updated according to the new connections. If the `self.em_field` property is `None`, the `em_field` property of the returned *RF_Coil* is `None` but connection data are stored in the new *RF_Coil*. If `False` (default value), the `em_field` property of the returned *RF_Coil* is `None` and no connection data are stored
 
 Returns
 
 * RF_Coil : *RF_Coil* <br>
 The new *RF_Coil* resulting form the connection of the original `self` *RF_Coil* with the *S_Matrix* `other`. It is worth noting that, if the network, described by the *S_Matrix* `other`, generates, under the given supplying conditions, an EM field which is not negligible with respect to that generated by the unconnected RF coil, the EM field associated with the returned *RF_Coil* can be inaccurate
+
+#### `powerBalance(self, p_inc, voxVols=None, elCond=None, printReport=False)`
+
+when the ports of the device are supplied according to the incident powers listed in p_inc, the method computes the power balance comprising: the total reflected power, the power lost in the last connected network, the power deposited by the electric field, the sum of the radiated power and power lost in the unconnected device
+
+Parameters
+
+* p_inc : *list*, *numpy ndarray*
+*list* or *numpy ndarray* with a length equal to the number of ports of the device. `p_inc[i]` is the power incident to the i-th port considered for the power balance computation
+* voxVols : *int*, *float*
+volume, in m<sup>3</sup>, of each voxel over which the electric field has been defined. This argument can be `None` if the `e_field` property of the *EM_Field* instance is `None`. Default is `None`.
+* elCond : *list*, *numpy ndarray*, *optional*
+*list* or *numpy ndarray* reporting the electrical conductivity associated with the 
+N<sub>N</sub> points over which the electric field is defined. If `None`, the method looks for the homonym property defined among the *EM_Field* instance `properties` property. Default is `None`
+* printReport : *bool*<br>
+if `True` the power balance is printed when the method is called
+
+
+Returns
+
+* powBal : *dict* <br>
+  dictionary with the following keys:
+  - *P_inc_tot* : *numpy  ndarray*<br>
+  N<sub>f</sub> elements *numpy  ndarray* reporting the total incident power at each frequency value. If the `e_field` property of the *EM_Field* instance in `None`, N<sub>f</sub> is the number of frequency values over which the *S_Matrix* instance has been defined. Otherwise N<sub>f</sub> is the number of frequency values over which the *EM_Field* instance has been defined
+  - *P_refl* : *numpy  ndarray*<br>
+  N<sub>f</sub> elements *numpy  ndarray* reporting the total reflected power at each frequency value. If the `e_field` property of the *EM_Field* instance in `None`, N<sub>f</sub> is the number of frequency values over which the *S_Matrix* instance has been defined. Otherwise N<sub>f</sub> is the number of frequency values over which the *EM_Field* instance has been defined
+  - *P_dep* : *numpy  ndarray*, *optional*<br>
+  N<sub>f</sub> elements *numpy  ndarray* reporting the power deposited by the electric field in the non-zero electrical conductivity voxels. N<sub>f</sub> is the number of frequency values over which the *EM_Field* instance has been defined. If the `e_field` property of the *EM_Field* instance is `None`, this key will not be defined
+  - *P_circ_loss* : N<sub>f</sub> elements *numpy  ndarray* reporting the power lost in the last connected network at each frequency value. If the `e_field` property of the *EM_Field* instance in `None`, N<sub>f</sub> is the number of frequency values over which the *S_Matrix* instance has been defined. Otherwise N<sub>f</sub> is the number of frequency values over which the *EM_Field* instance has been defined. If the *RF_Coil* instance has never been connected to any external network or connection data have not been stored, this key will not be defined
+  - *P_other* : N<sub>f</sub> elements *numpy  ndarray* reporting the power lost due to other type of losses (*e.g* radiation, power lost in the unconnected device) at each frequency value. *P_other* is computed as the total (at all ports) incident power subtracted by the other computed power losses. If the `e_field` property of the *EM_Field* instance in `None`, N<sub>f</sub> is the number of frequency values over which the *S_Matrix* instance has been defined. Otherwise N<sub>f</sub> is the number of frequency values over which the *EM_Field* instance has been defined

@@ -3,6 +3,9 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.interpolate import make_interp_spline
+from scipy.optimize import newton_krylov
+from scipy.optimize.nonlin import NoConvergence
+from functools import partial
 from copy import copy
 import warnings
 
@@ -23,7 +26,7 @@ class S_Matrix():
             self.__info_warnings = False
             
         if not isinstance(S, np.ndarray): 
-            raise TypeError("S matrix can only be np.ndarray")
+            raise TypeError("S matrix can only be numpy ndarray")
         elif not isinstance(freqs, np.ndarray) and not isinstance(freqs, list): 
              raise TypeError("Frequencies can only be an Nf list")
         elif (isinstance(z0, np.ndarray) or isinstance(z0, list)) and len(z0) != S.shape[1]:
@@ -35,12 +38,16 @@ class S_Matrix():
         elif len(freqs) != S.shape[0]:
              raise TypeError("The frequencies list is not compatible with the S matrix first dimension")
         elif (np.round(np.abs(S),6) > 1).any():
-            warnings.warn("An S parameter higher than one has been found. Results could be unphysical at least at one frequency value")
+            warnings.warn("An S parameter higher than one has been found. Results could be unphysical at least at one frequency value. Healing the S matrix with the healSMatrix method could solve the problem")
             if self.__info_warnings:
                 print("\nMax |S_ij|:\n")
                 print(np.max(np.abs(S)))
-        elif (np.round(np.real(np.linalg.eigvals(np.eye(S.shape[1]) - S @ np.conjugate(np.transpose(S,axes=[0,2,1])))),6) < 0).any():
-            warnings.warn("The S matrix seems to be unphysical at least at one frequency value.")
+        
+        # Check for positive definiteness of II - (S^H)(S)
+        p = np.eye(S.shape[1]) - S @ np.conjugate(np.transpose(S,axes=[0,2,1]))
+        not_nan_idxs = np.where(np.logical_not(np.isnan(p).any(axis=(1,2))))[0] #idx of new_P first dimension where no nan values along the other two dimensions are encountered
+        if (np.round(np.real(np.linalg.eigvals(p[not_nan_idxs])),6) < 0).any():
+            warnings.warn("The S matrix seems to be unphysical at least at one frequency value. Healing the S matrix with the healSMatrix method could solve the problem")
             if self.__info_warnings:
                 print("\nEigenvalues of II - S^H @ S:\n")
                 print(np.real(np.linalg.eigvals(np.eye(S.shape[1]) - S @ np.conjugate(np.transpose(S,axes=[0,2,1])))))
@@ -50,6 +57,10 @@ class S_Matrix():
         self.__f = np.array(freqs) #Hz
         self.__n_f = len(freqs)
         self.__nPorts = S.shape[-1]
+        self.__S0 = None
+        self.__p_incM = None
+        self.__phaseM = None
+        
         
         if not isinstance(z0, np.ndarray) and not isinstance(z0, list):
             self.__z0 = z0 * np.ones(self.__nPorts)
@@ -149,9 +160,9 @@ class S_Matrix():
     def __mul__(self, other):
         
         if not isinstance(other, S_Matrix): 
-            raise TypeError("Series operation can be performed only between two 1-port S_Matrix instances")
+            raise TypeError("Parallel operation can be performed only between two 1-port S_Matrix instances")
         elif self.__nPorts != 1 or other.__nPorts != 1:
-            raise TypeError("Series operation can be performed only between two 1-port S_Matrix instances")
+            raise TypeError("Parallel operation can be performed only between two 1-port S_Matrix instances")
         elif not np.array_equal(self.__f, other.__f):
             raise ValueError("The S_Matrix instances must be defined over the same frequency values")
         elif not np.array_equal(self.__z0, other.__z0):
@@ -259,7 +270,16 @@ class S_Matrix():
         
         z0sqrt = np.sqrt(z0)
         
-        Z = z0sqrt @ (np.eye(self.__nPorts) + S) @ np.linalg.inv(np.eye(self.__nPorts) - S) @ z0sqrt
+        M = np.eye(self.__nPorts) - S
+        
+        det_M = np.linalg.det(M)
+        
+        if (det_M == 0).any():
+            warnings.warn("The Z matrix cannot be computed at least at one frequency value. NaN is returned at those frequencies")
+        
+        M[det_M == 0] = None
+
+        Z = z0sqrt @ (np.eye(self.__nPorts) + S) @ np.linalg.inv(M) @ z0sqrt
             
         return Z
     
@@ -272,10 +292,162 @@ class S_Matrix():
 
         y0sqrt = np.sqrt(y0)
         
-        Y = y0sqrt @ np.linalg.inv(np.eye(self.__nPorts) + S) @ (np.eye(self.__nPorts) - S) @ y0sqrt
+        M = np.eye(self.__nPorts) + S
+        
+        det_M = np.linalg.det(M)
+        
+        if (det_M == 0).any():
+            warnings.warn("The Y matrix cannot be computed at least at one frequency value. NaN is returned at those frequencies")
+        
+        M[det_M == 0] = None
+        
+        Y = y0sqrt @ np.linalg.inv(M) @ (np.eye(self.__nPorts) - S) @ y0sqrt
             
         return Y  
+    
 
+    def compVI(self):
+            
+        #Voltages and currents relevant to the S matrix supply ports
+        vp_sup = np.diag(np.sqrt(self.__z0))
+        vp_sup = np.repeat(np.expand_dims(vp_sup,axis=0),self.__n_f,axis=0) #vp_sup.shape = [self.__n_f, self.nPorts, self.nPorts]
+        
+        vm_sup = self.__S @ vp_sup
+        
+        v_sup= vp_sup + vm_sup
+        
+        y = self.getYMatrix()
+        
+        if (np.isnan(y)).all(axis=(1,2)).any(): #The Y matrix has not been computed at least at one frequency value
+            warnings.warn("The currents cannot be computed at least at one frequency value. NaN is returned at those frequencies")
+        
+        i_sup = y @ v_sup
+        
+        if self.__S0 is None:
+            
+            print("No previous connections to external circuitries or connection data have not been saved. Voltages and currents are computed only at supply ports")
+            return v_sup, i_sup
+        
+        else:
+            
+            #Voltages and currents relevant to the S matrix ports before the last connection
+            vp0 = np.sqrt(self.__S0.__p_incM*self.__S0.__z0) * np.exp(self.__S0.__phaseM*1j) #vp.shape = [self.__f, self.__nPorts, self.__S0.__nPorts]
+            vp0 = np.moveaxis(vp0,-1,1) # vp.shape = [self.__f, self.__S0.__nPorts, self.__nPorts]
+    
+            vm0 = self.__S0.__S @ vp0
+            
+            v0 = vp0 + vm0
+            
+            y0 = self.__S0.getYMatrix()
+            
+            if (np.isnan(y0)).all(axis=(1,2)).any(): #The Y matrix has not been computed at least at one frequency value
+                warnings.warn("The currents cannot be computed at least at one frequency value. NaN is returned at those frequencies")
+            
+            i0 = y0 @ v0
+        
+        #v_sup or i_sup shape = [self.__f, self.__nPorts, self.__nPorts] --> v_sup[j,k,q] is the voltage at frequency self.__f[j] at port k of the self.__S matrix when 1 W power is incident to port q of the self.__S matrix
+        #v0 or i0 shape = [self.__f, self.__S0.__nPorts, self.__nPorts] --> v0[j,k,q] is the voltage at frequency self.__f[j] at port k of the self.__S0.__S matrix when 1 W power is incident to port q of the self.__S matrix
+
+        return v_sup, i_sup ,v0, i0 
+          
+    
+    def powerBalance(self, p_inc):
+
+        if not isinstance(p_inc, np.ndarray) and not isinstance(p_inc, list):
+            raise TypeError("p_inc can only be numpy ndarray or a list")
+        else:
+            p_inc = np.array(p_inc)
+        if p_inc.size != self.__nPorts:
+            raise TypeError("p_inc has to be a self.nPorts length list or numpy ndarray")
+        
+        #Computation of power accepted by the whole system: Original S matrix and connected circuitries
+        vp_1 = np.sqrt(self.__z0 * np.abs(p_inc)) * np.exp(1j*np.angle(p_inc))
+        S_transpose = np.moveaxis(self.__S,-1,-2)
+        diag_z0_inv  = np.linalg.inv(np.diag(self.__z0))
+        
+        p_acc_1 = np.conj(vp_1).T @ (diag_z0_inv - np.conj(S_transpose) @ diag_z0_inv @ self.__S) @ vp_1 # Power accepted by the whole system: Orignal S Matrix and connected circuitries
+        p_acc_1 = np.real(p_acc_1)
+        
+        if self.__S0 is None:
+            print("No previous connections to external circuitries or connection data have not been saved. The power balance is computed only at the supply ports")
+            return p_acc_1,
+        
+        #Computation of power accepted by the original S Matrix
+        p_inc2 = self.__S0.__p_incM * np.exp(1j*self.__S0.__phaseM) #p_inc2.shape = [self.__n_f, self.__nPorts, self.__S0.__nPorts]
+        p_inc2 = np.moveaxis(p_inc2,-1,1) #p_inc2.shape = [self.__n_f, self.__S0.__nPorts, self.__nPorts]
+        
+        vp_2_temp = np.sqrt(np.abs(p_inc2)) * np.exp(1j*np.angle(p_inc2)) #Still to be multiplied by the sqare root of the port impedances
+        vp_2 = np.sqrt(self.__S0.__z0) * (vp_2_temp @  (np.sqrt(np.abs(p_inc)) * np.exp(1j*np.angle(p_inc)))) #p_inc2.shape = [self.__n_f, self.__S0.__nPorts]
+        vp_2 = np.expand_dims(vp_2,axis=-1) #vp_2.shape = [self.__n_f, self.__S0.__nPorts,1]
+        
+        S_transpose = np.moveaxis(self.__S0.__S,-1,-2)
+        vp_2_transpose = np.moveaxis(vp_2,-1,-2)
+        diag_z0_inv  = np.linalg.inv(np.diag(self.__S0.__z0))
+        p_acc_2 = np.conj(vp_2_transpose) @ (diag_z0_inv - np.conj(S_transpose) @ diag_z0_inv @ self.__S0.__S) @ vp_2 # Power accepted by the whole system: Orignal S Matrix and connected circuitries
+        p_acc_2 = np.real(p_acc_2)
+        
+        return p_acc_1, p_acc_2.flatten()
+        
+    
+    def healSMatrix(self, report=False, f_tol=1e-10, rdiff=None, **kwarg):
+        
+        healed_S = np.zeros_like(self.__S)
+        
+        def equation_syst(k_t, x):
+    
+            S = np.reshape(x,[self.__nPorts,self.__nPorts],order='F')
+            roots = (np.conj(S).T@S - k_t).flatten(order='F')
+    
+            return roots
+        
+        print("\n\n\nHealing S matrix...\n\n")
+        
+        for i in range(self.__n_f): #I use fo cycle since I want to keep separated the roots finding problems
+                
+            print("\r%.2f %%" %(i/self.__n_f*100), end='')
+            S = self.S[i,:,:]
+
+            P = np.eye(self.__nPorts) - np.conj(S).T@S
+
+            eig_val, eig_vec = np.linalg.eig(P)
+            eig_val = np.real(eig_val)
+            
+            if (eig_val < 0).any():
+                
+                eig_val[eig_val<0] = 0
+                
+                new_P = eig_vec @ np.diag(eig_val) @ np.linalg.inv(eig_vec)
+
+                M = np.eye(self.__nPorts) - new_P
+                
+                try:
+                    sol = newton_krylov(partial(equation_syst, M),[S.flatten(order='F')], f_tol=f_tol, rdiff=rdiff)
+                    sol=sol.reshape((self.__nPorts,self.__nPorts),order='F')
+                    healed_S[i] = sol
+                except (NoConvergence):
+                    warnings.warn("The Newton Krylov algorithm returned a NoConvergence error at least at one frequency value. NaN is returned at these frequencies")
+                    healed_S[i] = np.ones((self.__nPorts,self.__nPorts)) * np.nan
+            else:
+                healed_S[i] = S
+        
+        if report:
+            rep = {}
+            rep["max_abs_Sdiff"] = np.max(np.abs(self.__S - healed_S),axis=(1,2))
+            
+            new_P = np.repeat(np.expand_dims(np.eye(self.__nPorts,self.__nPorts), axis=0), self.__n_f, axis=0) - np.moveaxis(np.conj(healed_S),-1,1) @ healed_S
+            
+            rep["min_eig_val"] = np.ones(self.__n_f) * np.nan
+            
+            not_nan_idxs = np.where(np.logical_not(np.isnan(new_P).any(axis=(1,2))))[0] #idx of new_P first dimension where no nan values along the other two dimensions are encountered
+
+            new_eig_val = np.real(np.linalg.eig(new_P[not_nan_idxs])[0]) #np.linalg.eig works only for not nan values
+            
+            rep["min_eig_val"][not_nan_idxs] = np.min(new_eig_val, axis=1)
+            
+            return S_Matrix(healed_S, self.__f, self.__z0, **kwarg), rep
+        
+        return S_Matrix(healed_S, self.__f, self.__z0, **kwarg)
+            
     
     def _singlePortConnSMatrix(self, networks, comp_Pinc=False):
         
@@ -349,12 +521,19 @@ class S_Matrix():
                     s_Pinc = s_forComp.__resSMatrix(s_loads_Pinc_M)
                     
                     p_inc, phase = self.__load_Pinc(s_Pinc)
-                    p_incM = np.append(p_incM, p_inc, axis=1)
-                    phaseM = np.append(phaseM, phase, axis=1)
-                
+                    p_incM = np.append(p_incM, p_inc, axis=1) #P_incM.shape = [self.__f, output_ports, input_ports]
+                    phaseM = np.append(phaseM, phase, axis=1) #phaseM.shape = [self.__f, output_ports, input_ports]
+                    
+            #Save connection data for vi and power budget computations
+            self.__p_incM = p_incM
+            self.__phaseM = phaseM
+            self.__S0 = None #self.__S0 is not None if previous connections already occured. I clear the property to avoid excessive data storing in case of many successive connections.
+                             #This can be improved storing nested S0s allowing to compute voltages and currents relevant to all the connected circuitries levels
+            S_res.__S0 = self
+            
             return S_res, p_incM, phaseM
 
-        return S_res
+        return S_res,
     
     
     def _fullPortsConnSMatrix(self, other, comp_Pinc=False):
@@ -390,12 +569,19 @@ class S_Matrix():
                     s_Pinc = s_forComp.__resSMatrix(s_loads_Pinc_M)
                     
                     p_inc, phase = self.__load_Pinc(s_Pinc)
-                    p_incM = np.append(p_incM, p_inc, axis=1)
-                    phaseM = np.append(phaseM, phase, axis=1)
+                    p_incM = np.append(p_incM, p_inc, axis=1) #P_incM.shape = [self.__f, output_ports, input_ports]
+                    phaseM = np.append(phaseM, phase, axis=1) #phaseM.shape = [self.__f, output_ports, input_ports]
                 
+            #Save connection data for vi and power budget computations
+            self.__p_incM = p_incM
+            self.__phaseM = phaseM
+            self.__S0 = None #self.__S0 is not None if previous connections already occured. I clear the property to avoid excessive data storing in case of many successive connections
+                             #This can be improved storing nested S0s allowing to compute voltages and currents relevant to all the connected circuitries levels
+            S_res.__S0 = self
+                    
             return S_res, p_incM, phaseM
 
-        return S_res
+        return S_res,
     
     
     def __resSMatrix(self, other):
@@ -551,7 +737,7 @@ class S_Matrix():
 
         return np.swapaxes(p_inc, 1, 2), np.swapaxes(phase, 1, 2)
     
-    
+      
     def __findFreqIndex(self, freq):
         
         if freq in self.__f:
@@ -561,8 +747,8 @@ class S_Matrix():
             warnings.warn("%e Hz is not contained in the frequencies list. %e Hz is returned instead" %(freq, self.__f[idx]))
         
         return idx
-    
-    
+        
+        
     @staticmethod
     def fromZtoS(Z, freqs, z0 = 50):
         
@@ -851,18 +1037,49 @@ class S_Matrix():
     
     
     @staticmethod
-    def sMatrixTrLine(l, freqs, z0=50, c_f = 1, alpha=0):
+    def sMatrixTrLine(l, freqs, z0_line=50, c_f = 1, alpha=0, z0=50):
 
+        if isinstance(z0,list) or isinstance(z0,np.ndarray):
+            z0_arr = z0
+            if len(z0) != 2:
+                raise ValueError("z0 must be a real value or a real values list with length equal to 2")
+        else:
+            z0_arr = np.ones(2) * z0
+                
         f = np.array(freqs)
         wl = 3e8 * c_f * 1/f
         beta = 2 * np.pi / wl
         
         gamma = alpha + 1j*beta
         
-        S11 = np.zeros((len(f),1,1))
-        S12 = np.moveaxis([[np.exp(-gamma*l)]],-1,0)
-        S21 = S12
-        S22 = S11
+        z0 = z0_arr[0]
+        
+        #S11
+        Sl = (z0 - z0_line) / (z0 + z0_line)
+        Zbegin = z0_line * (1 + Sl*np.exp(-2*gamma*l)) / (1 - Sl*np.exp(-2*gamma*l))
+        S11 = (Zbegin - z0) / (Zbegin + z0)
+        
+        #S21
+        v_p = 0.5 * (1 + S11) * (1 + z0_line/Zbegin)
+        v_m = 0.5 * (1 + S11) * (1 - z0_line/Zbegin)
+        S21 = v_p*np.exp(-gamma*l) +  v_m*np.exp(gamma*l)
+        
+        z0 = z0_arr[1]
+        
+        #S22
+        Sl = (z0 - z0_line) / (z0 + z0_line)
+        Zbegin = z0_line * (1 + Sl*np.exp(-2*gamma*l)) / (1 - Sl*np.exp(-2*gamma*l))
+        S22 = (Zbegin - z0) / (Zbegin + z0)
+        
+        #S12
+        v_p = 0.5 * (1 + S11) * (1 + z0_line/Zbegin)
+        v_m = 0.5 * (1 + S11) * (1 - z0_line/Zbegin)
+        S12 = v_p*np.exp(-gamma*l) +  v_m*np.exp(gamma*l)
+        
+        S11 = S11[:,None,None]
+        S22 = S22[:,None,None]
+        S21 = S21[:,None,None]
+        S12 = S12[:,None,None]
         
         S1 = np.concatenate((S11, S12), axis=2)
         S2 = np.concatenate((S21, S22), axis=2)
