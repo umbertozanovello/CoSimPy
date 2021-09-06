@@ -318,7 +318,7 @@ Returns
 
 The method returns the power accepted by the system when each port of the S matrix is supplied according to the incident powers passed in the p_inc list. If a connection with an external network has been performed and connection data have been stored, it also returns the power accepted by the S matrix before the last connection (*i.e* unconnected system in the figure below). The difference of the two accepted powers reflects the losses in the connected network
 
-![image](./images/powerBudget.png)
+![image](./images/powerBalance.png)
 
 Parameters
 * self : *S_Matrix*
@@ -1248,7 +1248,7 @@ if `True` the power balance is printed when the method is called
 
 Returns
 
-* powBudg : *dict* <br>
+* powBal : *dict* <br>
   dictionary with the following keys:
   - *P_inc_tot* : *numpy  ndarray*<br>
   N<sub>f</sub> elements *numpy  ndarray* reporting the total incident power at each frequency value. If the `e_field` property of the *EM_Field* instance in `None`, N<sub>f</sub> is the number of frequency values over which the *S_Matrix* instance has been defined. Otherwise N<sub>f</sub> is the number of frequency values over which the *EM_Field* instance has been defined
