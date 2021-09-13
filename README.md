@@ -1,6 +1,6 @@
 # CoSimPy
 
-CoSimPy is an open source Pyhton library aiming to combine results from electromagnetic (EM) simulations with circuit analysis through a co-simulation environment.
+CoSimPy is an open source Pyhton library optimised for Magnetic Resonance Imaging (MRI) Radiofrequency (RF) Coil design. The library aims to combine results from electromagnetic (EM) simulations with circuit analysis through a co-simulation environment.
 
 ## Summary
 
