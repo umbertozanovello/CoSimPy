@@ -55,7 +55,7 @@ License - see the [LICENSE](LICENSE) file for
 details.
 
 
-[test](.test.md)
+[test](./test.md)
 
 ## Acknowledgments
 
