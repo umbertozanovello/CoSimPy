@@ -54,6 +54,9 @@ This project is licensed under the MIT
 License - see the [LICENSE](LICENSE) file for
 details.
 
+
+[](.test.md)
+
 ## Acknowledgments
 
 The library has been developed in the framework of the Researcher Mobility Grant (RMG) associated with the european project 17IND01 MIMAS. This RMG: 17IND01-RMG1 MIMAS has received funding from the EMPIR programme co-financed by the Participating States and from the European Union's Horizon 2020 research and innovation programme.
