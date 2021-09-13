@@ -127,7 +127,7 @@ Out:
 
 rf_coil_line_matched.s_matrix.plotS(["S1-1"])
 ```
-![pp](./blob/main/docs/images/example_S.png)
+![](https://github.com/umbertozanovello/CoSimPy/blob/main/docs/images/example_S.png?raw=true)
 
 ## License
 
