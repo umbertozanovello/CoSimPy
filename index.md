@@ -127,7 +127,7 @@ Out:
 
 rf_coil_line_matched.s_matrix.plotS(["S1-1"])
 ```
-![pp](.main/docs/images/example_S.png)
+![pp](./main/docs/images/example_S.png)
 
 ## License
 
