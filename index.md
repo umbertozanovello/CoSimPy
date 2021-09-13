@@ -1,37 +1,56 @@
-## Welcome to GitHub Pages
+CoSimPy is an open source Pyhton library optimised for Magnetic Resonance Imaging (MRI) Radiofrequency (RF) Coil design. The library aims to combine results from electromagnetic (EM) simulations with circuit analysis through a co-simulation environment.
 
-You can use the [editor on GitHub](https://github.com/umbertozanovello/CoSimPy/edit/gh-pages/index.md) to maintain and preview the content for your website in Markdown files.
+## Summary
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+  - [Getting Started](#getting-started)
+  - [Deployment](#deployment)
+  - [License](#license)
+  - [Acknowledgments](#acknowledgments)
 
-### Markdown
+## Getting Started
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+The library has been developed with Python 3.7. and tested on previous versions down to Python 3.5.
 
-```markdown
-Syntax highlighted code block
+### Prerequisites
 
-# Header 1
-## Header 2
-### Header 3
+The library uses the following additional packages:
 
-- Bulleted
-- List
+- [numpy](https://numpy.org/) (>=1.15.2)
+- [matplotlib](https://matplotlib.org/) (>=3.0.0)
+- [h5py](https://www.h5py.org/) (>=2.8.0)
+- [scipy](https://www.scipy.org/) (>=1.1.0)
 
-1. Numbered
-2. List
+The package versions reported in brackets represent the oldest releases with which the library has been succesfully tested.
 
-**Bold** and _Italic_ and `Code` text
+### Installing
 
-[Link](url) and ![Image](src)
+With [pip](https://pypi.org/project/pip/) (https://pypi.org/project/cosimpy/):
+```
+pip install cosimpy
 ```
 
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
+With [anaconda](https://www.anaconda.com/products/individual):
+```
+conda install --channel umbertopy cosimpy
+```
 
-### Jekyll Themes
+## Deployment
 
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/umbertozanovello/CoSimPy/settings/pages). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
+After installation, the library can be imported as:
 
-### Support or Contact
+```python
+import cosimpy
+```
 
-Having trouble with Pages? Check out our [documentation](https://docs.github.com/categories/github-pages-basics/) or [contact support](https://support.github.com/contact) and we’ll help you sort it out.
+## License
+
+This project is licensed under the MIT
+License - see the [LICENSE](LICENSE) file for
+details.
+
+## Acknowledgments
+
+The library has been developed in the framework of the Researcher Mobility Grant (RMG) associated with the european project 17IND01 MIMAS. This RMG: 17IND01-RMG1 MIMAS has received funding from the EMPIR programme co-financed by the Participating States and from the European Union's Horizon 2020 research and innovation programme.
+
+[![](./docs/images/EMPIR_logo.jpg)](https://www.euramet.org/research-innovation/research-empir/)
+[![](./docs/images/MIMAS_logo.png)](https://www.ptb.de/mimas/home/)
