@@ -142,5 +142,5 @@ details.
 
 The library has been developed in the framework of the Researcher Mobility Grant (RMG) associated with the european project 17IND01 MIMAS. This RMG: 17IND01-RMG1 MIMAS has received funding from the EMPIR programme co-financed by the Participating States and from the European Union's Horizon 2020 research and innovation programme.
 
-[![](./docs/images/EMPIR_logo.jpg)](https://www.euramet.org/research-innovation/research-empir/)
-[![](./docs/images/MIMAS_logo.png)](https://www.ptb.de/mimas/home/)
+[![](https://github.com/umbertozanovello/CoSimPy/blob/main/docs/images/EMPIR_logo.jpg?raw=true)](https://www.euramet.org/research-innovation/research-empir/)
+[![](https://github.com/umbertozanovello/CoSimPy/blob/main/docs/images/MIMAS_logo.png?raw=true)](https://www.ptb.de/mimas/home/)
