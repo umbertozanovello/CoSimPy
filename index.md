@@ -55,7 +55,7 @@ License - see the [LICENSE](LICENSE) file for
 details.
 
 
-[test](./blob/gh-pages/test.md)
+[test](./gh-pages/test.md)
 
 ## Acknowledgments
 
