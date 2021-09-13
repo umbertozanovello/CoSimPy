@@ -1,5 +1,5 @@
 ---
-title: MAIN
+title: home
 layout: default
 filename: index.md
 --- 
