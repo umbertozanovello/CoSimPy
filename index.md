@@ -9,10 +9,15 @@ Full documentation available [here](https://github.com/umbertozanovello/CoSimPy/
 
 ## Summary
 
+  - [News](#news)
   - [Getting Started](#getting-started)
   - [Deployment](#deployment)
   - [License](#license)
   - [Acknowledgments](#acknowledgments)
+
+## News
+
+You can read about CoSimPy news and version hystory [here](./News&Versions.md)
 
 ## Getting Started
 
