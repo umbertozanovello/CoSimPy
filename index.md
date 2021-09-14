@@ -9,14 +9,14 @@ CoSimPy is an open source Pyhton library optimised for Magnetic Resonance Imagin
 
 ## Summary
 
-  - [News](#news)
+  - [News & Versions](#news-versions)
   - [Getting Started](#getting-started)
   - [Deployment](#deployment)
   - [Full documentation](#full-documentation)
   - [License](#license)
   - [Acknowledgments](#acknowledgments)
 
-## News
+## News & Versions
 
 You can read about CoSimPy news and version hystory [here](./News&Versions.md)
 
