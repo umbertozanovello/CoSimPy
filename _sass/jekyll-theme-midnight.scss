@@ -219,7 +219,12 @@ dt {
           float: right;
           margin-left: 6px;
         }
-
+        
+        &.homepage {
+          float: center;
+          margin-left: 0px;
+        }
+        
         &.title {
           float: right;
           margin-right: 10px;
