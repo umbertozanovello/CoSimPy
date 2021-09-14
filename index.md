@@ -136,7 +136,7 @@ License - see the [LICENSE](LICENSE) file for
 details.
 
 
-[test](./blob/gh-pages/test.md)
+[test](./test.md)
 
 ## Acknowledgments
 
