@@ -5,13 +5,14 @@ filename: index.md
 --- 
 
 CoSimPy is an open source Pyhton library optimised for Magnetic Resonance Imaging (MRI) Radiofrequency (RF) Coil design. The library aims to combine results from electromagnetic (EM) simulations with circuit analysis through a co-simulation environment.<br>
-Full documentation available [here](https://github.com/umbertozanovello/CoSimPy/blob/main/docs/Documentation.md)
+
 
 ## Summary
 
   - [News](#news)
   - [Getting Started](#getting-started)
   - [Deployment](#deployment)
+  - [Full documentation](#full-documentation)
   - [License](#license)
   - [Acknowledgments](#acknowledgments)
 
@@ -134,6 +135,10 @@ Out:
 rf_coil_line_matched.s_matrix.plotS(["S1-1"])
 ```
 ![](https://github.com/umbertozanovello/CoSimPy/blob/main/docs/images/example_S.png?raw=true)
+
+## Full Documentation
+
+A more detailed documentation of CoSimPy is available [here](https://github.com/umbertozanovello/CoSimPy/blob/main/docs/Documentation.md)
 
 ## License
 
