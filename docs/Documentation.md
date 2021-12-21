@@ -366,7 +366,9 @@ Parameters
 * networks : *list* <br>
 *list*, with length equal to the number of ports of `self`, either containing `None` values or *S_Matrix* instances defined over the same frequency values of `self`. If the n-th element of `networks` is `None`, the n-th port of `self` is not connected to any other network in the returned *S_Matrix*. If the n-th element of `networks` is an N-ports *S_Matrix*, its first port must share the same impedance of the n-th port of `self` and the two ports are connected together. In the returned *S_Matrix*, the n-th port of `self` is therefore expanded into (N-ports - 1) ports. The example proposed in the image below should clarify the workflow
 
-![image](./images/singlePortConnSMatrix.png)
+<p align="center">
+<img src="./images/singlePortConnSMatrix.png" alt="drawing" width="400"/>
+</p>
 
 * comp_Pinc : *bool*, *optional* <br>
   if `True` the method returns the magnitude and 'phase' of the incident powers across the ports of `self` when each port of the returned S matrix is supplied with 1 W of incident power and all its other ports are closed on characteristic loads. Default is `False`
