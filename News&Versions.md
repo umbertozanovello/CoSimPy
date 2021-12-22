@@ -20,7 +20,7 @@ What will be new:
 * Two new methods of the RF_Coil class will allow to save and load the RF_Coil instance in proprietary binary files;
 * New methods will be available in the RF_Coil class to duplicate existing ports of a simulated device.
 
---------------------------------------------------------------------------------------------------------------
+---
 
 
 Version 1.2.0 is now available on [GitHub](https://github.com/umbertozanovello/CoSimPy/tree/main) and [PyPi](https://pypi.org/project/cosimpy/) pages!<br><br>
