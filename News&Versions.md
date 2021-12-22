@@ -7,7 +7,7 @@ filename: News&Versions.md
 # News
 Version 1.3.0 is will be available soon!
 What will be new:
-* A new __sub__ method in the S_Matrix class will allow to perform the cascade connection between the last port of a first S_Matrix instance and the first port of a second just as: S_res = S_1 - S_2;
+* A new \_\_sub__ method in the S_Matrix class will allow to perform the cascade connection between the last port of a first S_Matrix instance and the first port of a second just as: S_res = S_1 - S_2;
 * The importTouchstone method of the SMatrix class has been improved to fully support the v1.1. Touchstone® File Format Specification by IBIS. It will be possible to import also Z- and Y-parameters. Furhtermore, providing to the method the relevant information through a dictionary, the same method will also be able to import a simple ascii file formatted by columns
 * An exportTouchstone method will be available in the S_Matrix class to export the S-, Z- or Y-parameters either according to the v1.1. Touchstone® File Format Specification by IBIS or to a columns formatted ascii file;
 * Two new methods in the S_Matrix class will allow to generate an instance of an 1-port open or 1-port short over defined frequency values.
