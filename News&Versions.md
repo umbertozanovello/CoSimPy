@@ -12,7 +12,7 @@ What will be new:
 * The importTouchstone method of the SMatrix class has been improved to fully support the v1.1. Touchstone® File Format Specification by IBIS. It will be possible to import also Z- and Y-parameters. Furhtermore, providing to the method the relevant information through a dictionary, the same method will also be able to import a simple ascii file formatted by columns
 * An exportTouchstone method will be available in the S_Matrix class to export the S-, Z- or Y-parameters either according to the v1.1. Touchstone® File Format Specification by IBIS or to a columns formatted ascii file;
 * Two new methods in the S_Matrix class will allow to generate an instance of an 1-port open or 1-port short over defined frequency values.
-* The existing methods to generate T and PI circuits will accept None arguments for transversal and longitudinal parameters respectively to substitute them with short and open circuits respectively;
+* The existing methods to generate T and PI circuits will accept None arguments for longitudinal and transversal parameters respectively to substitute them with short and open circuits respectively;
 * The original S matrix, S0, will be saved in way allowing for the external circuitry losses computation accounting for all the consecutive connections to the S0 matrix;
 * A new method will be available in the S_Matrix class to set the S_Matrix instance resulting from the connections with external circutries as unconnected. In this way, in the powerBalance, the connected circuitry losses will be assigned to the source "other";
 * Two new methods will be available in the S_Matrix class to generate S_Matrix instances of Y- E-like 3-port circuits;
