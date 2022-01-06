@@ -96,7 +96,7 @@ Out:
     array([[[41.66705459+708.46385311j]]])
 '''
 
-#The impedance can be transormed to 50 ohm at 128 MHz deploying a T-network made of two capacitors and one inductor with the following values:
+#The impedance can be transformed to 50 ohm at 128 MHz deploying a T-network made of two capacitors and one inductor with the following values:
 
 Ca = 1.87e-12 #farad
 Cb = 27.24e-12 #farad
