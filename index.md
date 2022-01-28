@@ -93,7 +93,7 @@ Out:
     1e-07
 '''
 
-#5 cm lossless transmission line
+#5 cm, 50 ohm lossless transmission line
 tr_line = cosimpy.S_Matrix.sMatrixTrLine(5e-2,frequencies) 
 
 #Connection between the RF coil and the transmission line
