@@ -17,7 +17,7 @@ em_coil = EM_Field([128e6], nPoints, b_field) #EM_Field instance
 
 rf_coil = RF_Coil(s_coil,em_coil) #RF_Coil instance
 
-tr_line = S_Matrix.sMatrixTrLine(5e-2,frequencies) #5 cm lossless transmission line
+tr_line = S_Matrix.sMatrixTrLine(5e-2,frequencies) #5 cm, 50 ohm, lossless transmission line
 
 rf_coil_line = rf_coil.singlePortConnRFcoil([tr_line],True) #Connection of the RF coil to the transmission line
 
