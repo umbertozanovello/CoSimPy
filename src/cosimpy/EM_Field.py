@@ -508,7 +508,7 @@ class EM_Field():
                 print("Importing %s MHz fields\n"%f)
     
                 for port in range(nPorts):
-                    print("\tImporting port%d fields\n\n"%(port+1))
+                    print("\r\tImporting port%d fields"%(port+1), end='', flush=True)
                     if col_ascii_order == 0:
                         re_cols = (3,4,5)
                         im_cols = (6,7,8)
@@ -531,7 +531,7 @@ class EM_Field():
                 print("Importing %s MHz fields\n"%f)
     
                 for port in range(nPorts):
-                    print("\tImporting port%d fields\n\n"%(port+1))
+                    print("\r\tImporting port%d fields"%(port+1), end='', flush=True)
                     if imp_efield:
                         
                         filename = "/efield_%s_port%d.h5"%(f,port+1)
@@ -593,7 +593,7 @@ class EM_Field():
         
         for port in range(nPorts):
             
-            print("\tImporting port%d fields\n\n"%(port+1))
+            print("\rImporting port%d fields"%(port+1), end='', flush=True)
             
             if imp_efield:    
                 

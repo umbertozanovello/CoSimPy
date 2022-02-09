@@ -242,7 +242,10 @@ class RF_Coil():
         if filename.split(".")[-1] != "cspy":
             filename += ".cspy"
         
-        description = " ".join(description.split("\n"))
+        if description:
+            description = " ".join(description.split("\n"))
+        else:
+            description = "N/D"
         
         # Extraction of S_Matrix nested instances (Up to now only level 0 (final S matrix) and 1 (original S matrix) will be present)
         s_matrix = self.s_matrix
@@ -254,6 +257,10 @@ class RF_Coil():
             n_ports_list.append(s_matrix.nPorts)
         
         with open(filename, 'wb') as f:
+            
+            #Saving status
+            print("\nSaving: header...", end='', flush=True)
+            
             #File version and header lines
             f.write(struct.pack('<h', file_version))
             f.write(struct.pack('<h', header_lines))
@@ -270,6 +277,9 @@ class RF_Coil():
             f.write(b"EMNFREQ: %s\n"%(b"N/D" if self.em_field is None else bytes(str(self.em_field.n_f), encoding="utf-8")))
             f.write(b"EM_PROP: %s\n"%(b"N/D" if (self.em_field is None or self.em_field.properties == {}) else b", ".join(bytes(x, encoding="utf-8") for x in self.em_field.properties.keys())))
             f.write(b"### HEADER END ###\n")
+            
+            #Saving status
+            print("\rSaving: S_Matrix...", end='', flush=True)
             
             #s_matrix_frequencies
             for freq in self.s_matrix.frequencies:
@@ -289,24 +299,35 @@ class RF_Coil():
                 phaseM_flat = s_matrix_instance._phaseM.flatten()
                 for ph in phaseM_flat:
                     f.write(struct.pack('<f', ph))
+            
             #em_field
             if self.em_field is not None:
+            
                 em_field_prop_names = self.em_field.properties.keys()
                 #EM frequencies
                 for freq in self.em_field.frequencies:
                     f.write(struct.pack('<f', freq))
                 #E field
                 if self.em_field.e_field is not None:
+                    #Saving status
+                    print("\rSaving: EM_Field.e_field...", end='', flush=True)
+                
                     e_field_flat = flattenCompArray(self.em_field.e_field)
                     for e in e_field_flat:
                         f.write(struct.pack('<f', e))
                 #B field
                 if self.em_field.b_field is not None:
+                    #Saving status
+                    print("\rSaving: EM_Field.b_field...", end='', flush=True)
+                    
                     b_field_flat = flattenCompArray(self.em_field.b_field)
                     for b in b_field_flat:
                         f.write(struct.pack('<f', b))
                 # properties
                 for prop_name in em_field_prop_names:
+                    #Saving status
+                    print("\rSaving: EM_Field.properties...", end='', flush=True)
+                    
                     for pr in self.em_field.properties[prop_name]:
                         f.write(struct.pack('<f', pr))
             
@@ -320,6 +341,9 @@ class RF_Coil():
             file_version, = struct.unpack('<h', f.read(2)) #When higher version will be implemented, a check can be performed over this variable
             header_lines, = struct.unpack('<h', f.read(2))
             
+            #Loading status
+            print("\nLoading: header...", end='', flush=True)
+            
             #Reading header
             header = {}
             f.readline() #HEADER BEGIN
@@ -328,6 +352,9 @@ class RF_Coil():
                 line = line.rstrip().split(": ")
                 header[line[0]] = line[1]
             line = f.readline() #HEADER END
+            
+            #Loading status
+            print("\rLoading: S_Matrix...", end='', flush=True)
             
             #s_matrix_frequencies
             s_frequencies = np.zeros(int(header['S_NFREQ']))
@@ -373,12 +400,18 @@ class RF_Coil():
                 for i in range(int(header['EMNFREQ'])):
                     em_frequencies[i] = struct.unpack('<f', f.read(4))[0]
                 if header["E_FIELD"] == 'TRUE':
+                    #Loading status
+                    print("\rLoading: EM_Field.e_field...", end='', flush=True)
+            
                     e_field = np.zeros(int(header['EMNFREQ'])*n_ports[0]*3*n_points, dtype=np.complex)
                     for i in range((int(header['EMNFREQ'])*n_ports[0]*3*n_points)):
                         e_field[i] = struct.unpack('<f', f.read(4))[0]
                         e_field[i] += 1j*struct.unpack('<f', f.read(4))[0]
                     e_field = e_field.reshape([int(header['EMNFREQ']),n_ports[0],3,n_points])
                 if header["B_FIELD"] == 'TRUE':
+                    #Loading status
+                    print("\rLoading: EM_Field.b_field...", end='', flush=True)
+                    
                     b_field = np.zeros(int(header['EMNFREQ'])*n_ports[0]*3*n_points, dtype=np.complex)
                     for i in range((int(header['EMNFREQ'])*n_ports[0]*3*n_points)):
                         b_field[i] = struct.unpack('<f', f.read(4))[0]
@@ -387,6 +420,9 @@ class RF_Coil():
                 em_properties = {}
                 prop_names = header["EM_PROP"].split(", ")
                 if prop_names[0] != 'N/D':
+                    #Loading status
+                    print("\rLoading: EM_Field.properties...", end='', flush=True)
+                    
                     for prop_name in prop_names:
                         em_property = np.zeros([n_points], dtype=np.float)
                         for i in range(n_points):
