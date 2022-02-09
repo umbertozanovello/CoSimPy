@@ -478,7 +478,7 @@ class EM_Field():
             if imp_efield:
                 filename = "/efield_%s_port1.h5"%(freqs[0])
             else:
-                filename = "/efield_%s_port1.h5"%(freqs[0])
+                filename = "/bfield_%s_port1.h5"%(freqs[0])
                 
             with h5py.File(directory+filename, "r") as f:
                 x = np.array(f['Mesh line x'])
@@ -525,6 +525,8 @@ class EM_Field():
                         b_imag = np.loadtxt(directory+"/bfield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=(6,7,8))
                         assert b_real.shape[0] == n, "At least one of b_field files is not compatible with the evaluated or passed nPoints"
                         b_field[idx_f, port, :, :] = (b_real+1j*b_imag).T
+                
+                print("\n")
         
         elif fileType.lower() == 'hdf5':
             for idx_f, f in enumerate(freqs):
@@ -562,6 +564,7 @@ class EM_Field():
                         b_flat = np.array(b_flat.tolist()) #Array n_points, 3 (components), 2 (real and imaginary)
                         b_field[idx_f, port, :, :] = (b_flat[:,:,0] + 1j*b_flat[:,:,1]).T
                     
+                print("\n")
         if imp_efield:
             e_field = np.sqrt(1/Pinc_ref) * rmsCoeff * e_field #cst exported field values are peak values
         if imp_bfield:
