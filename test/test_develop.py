@@ -20,7 +20,7 @@ test7 = True
 test8 = True
 
 if test1:
-    def test_1():
+    def test1():
         """
         TEST 1: Check V,I computation singleLoad, 1 supply port of loaded matrix
         """
@@ -148,7 +148,7 @@ if test4:
         TEST 4: Check power balance comparing with Sim4Life supplying all ports with 1W incident power
         """
         
-        directory = "./filesForTests" 
+        directory = os.path.join(os.path.dirname(__file__),"filesForTests")
         s_matrix = S_Matrix.importTouchstone(directory+"/S_forPowBalance.s8p", freqUnit="Hz")
         em_field = EM_Field.importFields_s4l(directory+"/FieldForPowerBalance", [123e6], 8, imp_bfield=False)
         rf_coil = RF_Coil(s_matrix, em_field)
@@ -276,17 +276,17 @@ if test6:
         TEST 6: Saving and loading
         """
         
-        directory = "./filesForTests/"
+        directory = os.path.join(os.path.dirname(__file__),"filesForTests")
         
-        s_matrix = S_Matrix.importTouchstone(directory + "S_forSaveAndLoading.s4p")
-        em_field = EM_Field.importFields_s4l(directory + "FieldForSaveAndLoading",[123e6],4,pkORrms='pk',imp_bfield=True, conductivity=[0.6]*382500,conductivity2=[0.6]*382500)
+        s_matrix = S_Matrix.importTouchstone(directory + "/S_forSaveAndLoading.s4p")
+        em_field = EM_Field.importFields_s4l(directory + "/FieldForSaveAndLoading",[123e6],4,pkORrms='pk',imp_bfield=True, conductivity=[0.6]*382500,conductivity2=[0.6]*382500)
 
         orig_rf_coil = RF_Coil(s_matrix,em_field)
         S_open = S_Matrix(np.ones([1,1,1]),[123e6])
         rf_coil = orig_rf_coil.singlePortConnRFcoil([None,S_open,None,S_open],True)
         
-        rf_coil.saveRFCoil("./filesForTests//saveload_test", "Prova\n\n\n")
-        loaded_rf_coil = RF_Coil.loadRFCoil("./filesForTests//saveload_test.cspy")
+        rf_coil.saveRFCoil(directory+"//saveload_test", "Prova\n\n\n")
+        loaded_rf_coil = RF_Coil.loadRFCoil(directory+"//saveload_test.cspy")
         
         assert np.allclose(rf_coil.em_field.nPoints, loaded_rf_coil.em_field.nPoints, equal_nan=True)
         assert np.allclose(rf_coil.em_field.frequencies, loaded_rf_coil.em_field.frequencies, equal_nan=True)
@@ -338,8 +338,8 @@ if test8:
         TEST 8: Test multiple connections randomly
         """
         
-        directory = "./filesForTests/"
-        s_matrix = S_Matrix.importTouchstone(directory + "S_forMultConn.s48p")
+        directory = os.path.join(os.path.dirname(__file__),"filesForTests")
+        s_matrix = S_Matrix.importTouchstone(directory + "/S_forMultConn.s48p")
         
         rf_coil = RF_Coil(s_matrix)
         

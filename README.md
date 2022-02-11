@@ -8,11 +8,12 @@ CoSimPy is an open source Python library aiming to combine results from electrom
   - [Deployment](#deployment)
   - [Test](#test)
   - [License](#license)
+  - [Related Publications](#related-publications)
   - [Acknowledgments](#acknowledgments)
 
 ## Getting Started
 
-The library has been developed with Python 3.7. and tested on previous versions down to Python 3.5.
+The library has been developed with Python 3.7 and succesfully tested down to Python 3.5 up to Python 3.10 on Linux, Windows and macOS
 
 ### Prerequisites
 
@@ -141,6 +142,11 @@ Different tests can be enabled/disabled through the relevant boolean flags in te
 This project is licensed under the MIT
 License - see the [LICENSE](LICENSE) file for
 details.
+
+## Related Publications
+
+If you find CoSimPy useful for your work, please consider to cite this [paper](https://www.sciencedirect.com/science/article/pii/S0169260722000694)!
+
 
 ## Acknowledgments
 
