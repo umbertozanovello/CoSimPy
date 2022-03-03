@@ -6,18 +6,18 @@ filename: News&Versions.md
 
 # News
 
-Version 1.3.1 is now available on [GitHub](https://github.com/umbertozanovello/CoSimPy/tree/main) and [PyPi](https://pypi.org/project/cosimpy/) pages!<br><br>
-
-The version is a repackaging of version 1.3.0 with the following minor improvements and fixing:
-
-- Solved a bug in the `saveRFCoil` method when the RF coil is saved without description;
-- Edited the status print of the saveRFCoil and loadRFCoil methods;
-- Edited the status print of the importFields methods;
-- Solved a bug in the `importFields_cst` method when only the b_field is imported.
+Version 1.3.2 is now available on [GitHub](https://github.com/umbertozanovello/CoSimPy/tree/main) and [PyPi](https://pypi.org/project/cosimpy/) pages!<br><br>
+A bug in `compSensitivities` method of the EM_Field class has been fixed. 
 
 ---
 
 # Previous Versions
+
+- v 1.3.1 (Feb 9, 2022):
+  * Solved a bug in the `saveRFCoil` method when the RF coil is saved without description;
+  * Edited the status print of the saveRFCoil and loadRFCoil methods;
+  * Edited the status print of the importFields methods;
+  * Solved a bug in the `importFields_cst` method when only the b_field is imported.
 
 - v 1.3.0 (Jan 28, 2021):
   * A new `__sub__` method in the S_Matrix class allows to perform the cascade connection between the last port of a first S_Matrix instance and the first port of  a second just as: `S_res = S_1 - S_2`;
