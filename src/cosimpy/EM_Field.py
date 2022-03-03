@@ -122,7 +122,7 @@ class EM_Field():
         if self.__b_field is None:
             raise ValueError("No b_field property is specifed for the EM_Field instance")
         
-        sens = np.copy(self.__b_field)
+        sens = np.copy(self.__b_field * np.sqrt(2)) # b_field contains rms values of the B field
         sens = np.delete(sens, 2, axis = 2)
         
         b1p = 0.5*(sens[:,:,0,:] + 1j*sens[:,:,1,:])
