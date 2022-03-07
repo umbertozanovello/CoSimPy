@@ -1158,10 +1158,10 @@ If the electric field is defined, the method returns the power density in W/m<su
 Parameters
 
 * self : *EM_Field*
-* elCond : *list*, *numpy ndarray*, *optional*
+* elCond : *list*, *numpy ndarray*, *optional*<br>
 *list* or *numpy ndarray* reporting the electrical conductivity associated with the 
 N<sub>N</sub> points over which the electric field is defined. If `None`, the method looks for the homonym property defined among the **kwargs of the class. Default is `None`
-* p_inc : *list*, *numpy ndarray*, *optional*
+* p_inc : *list*, *numpy ndarray*, *optional*<br>
 *list* or *numpy ndarray* with a length equal to the number of ports of the device. `p_inc[i]` is the power incident to the i-th port considered for the power density computation. Default is `None`
 
 Returns
@@ -1176,12 +1176,12 @@ If the electric field is defined, the method returns the power, in watt, deposit
 Parameters
 
 * self : *EM_Field*
-* voxVols : *int*, *float*
+* voxVols : *int*, *float*<br>
 volume, in m<sup>3</sup>, of each voxel over which the electric field has been defined
-* elCond : *list*, *numpy ndarray*, *optional*
+* elCond : *list*, *numpy ndarray*, *optional*<br>
 *list* or *numpy ndarray* reporting the electrical conductivity associated with the 
 N<sub>N</sub> points over which the electric field is defined. If `None`, the method looks for the homonym property defined among the **kwargs of the class. Default is `None`
-* p_inc : *list*, *numpy ndarray*, *optional*
+* p_inc : *list*, *numpy ndarray*, *optional*<br>
 *list* or *numpy ndarray* with a length equal to the number of ports of the device. p_inc[i] is the power incident to the i-th port considered for the power density computation. Default is `None`
 
 Returns
