@@ -18,6 +18,7 @@ test5 = True
 test6 = True
 test7 = True
 test8 = True
+test9 = True
 
 if test1:
     def test1():
@@ -358,3 +359,35 @@ if test8:
         for sup in sups:
             p_bud = res.powerBalance(sup)
             assert np.isclose(p_bud["P_circ_loss"],0)
+            
+if test9:
+    def test9():
+        """
+        TEST 9: Check Q Matrix
+        """
+        # Using test file for power balance test
+        
+        directory = os.path.join(os.path.dirname(__file__),"filesForTests")
+        
+        elCond = np.random.random(370260)
+
+        s_matrix = S_Matrix.importTouchstone(directory+"/S_forPowBalance.s8p", freqUnit="Hz")
+        em_field = EM_Field.importFields_s4l(directory+"/FieldForPowerBalance", [123e6], 8, imp_bfield=False, elCond=elCond)
+        
+        rf_coil = RF_Coil(s_matrix, em_field)
+    
+        v_inc = np.random.random(rf_coil.em_field.nPorts) + 1j*np.random.random(rf_coil.em_field.nPorts)
+        
+        point = [20,10,50]
+        q_matrix = rf_coil.em_field.compQMatrix(point=point, freq=rf_coil.em_field.frequencies[0], z0_ports=rf_coil.s_matrix.z0, elCond=None)
+        
+        pd_q = v_inc.conj().T @ q_matrix @ v_inc
+        
+        p_inc = (np.abs(v_inc)**2 / rf_coil.s_matrix.z0) * np.exp(1j*np.angle(v_inc))
+        
+        pd_cos = rf_coil.em_field.compPowDens(elCond=None, p_inc=p_inc)[0]
+        
+        pd_cos = pd_cos.reshape(rf_coil.em_field.nPoints, order='F')[tuple(point)]
+        
+        assert(np.isclose(pd_cos,pd_q.real))
+

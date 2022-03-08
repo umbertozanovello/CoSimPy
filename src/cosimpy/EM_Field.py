@@ -120,7 +120,7 @@ class EM_Field():
     def compSensitivities(self):
         
         if self.__b_field is None:
-            raise ValueError("No b_field property is specifed for the EM_Field instance")
+            raise ValueError("No b_field property is specified for the EM_Field instance")
         
         sens = np.copy(self.__b_field * np.sqrt(2)) # b_field contains rms values of the B field
         sens = np.delete(sens, 2, axis = 2)
@@ -149,7 +149,7 @@ class EM_Field():
             elCond = self.__prop["elCond"]
             
         if self.__e_field is None:
-            raise ValueError("No e field property is specifed for the EM_Field instance. Power density cannot be computed")
+            raise ValueError("No e field property is specified for the EM_Field instance. Power density cannot be computed")
         
         if p_inc is not None: #Power density is computed for a defined supply configuration
             if not isinstance(p_inc, np.ndarray) and not isinstance(p_inc, list):
@@ -181,12 +181,86 @@ class EM_Field():
         depPow = np.nansum(powDens*voxVols, axis=-1)
         
         return depPow
+    
+    
+    def compQMatrix(self, point, freq, z0_ports=50, elCond=None):
         
+        if self.__e_field is None:
+            raise ValueError("No e field property is specified for the EM_Field instance. Power density cannot be computed")
+
+        if not isinstance(point, np.ndarray) and not isinstance(point, list):
+            raise TypeError("point must be a 3 element list or numpy ndarray")
+        else:
+            point = np.array(point)
+        if point.shape != (3,):
+            raise TypeError("point must be a 3 element list or numpy ndarray")
+
+        point_index = point[2]*self.__Points[0]*self.__nPoints[1] + point[1]*self.__nPoints[0] + point[0] #index of the selected point according to the 'Fortran' flatten order
+        
+        freq_idx = np.where(self.__freqs==freq)[0][0]
+        if freq_idx is None:
+            raise ValueError("No E field for the specified frequency")
+
+        if elCond is not None and not isinstance(elCond, np.float) and not isinstance(elCond, np.int):
+            raise TypeError("elCond must be None or a single scalar number representative of the electrical conductivity in point")
+        elif elCond is None and "elCond" in self.__prop.keys():
+            elCond = self.__prop["elCond"][point_index]
+        elif elCond is None: #No electrical conductivi is passed as argument and a relevant property is not present
+            elCond = 1
+        
+        if not isinstance(z0_ports, np.ndarray) and not isinstance(z0_ports, list) and not isinstance(z0_ports, np.int) and not isinstance(z0_ports, np.float):
+            raise TypeError("z0_ports must be a self.nPorts real value elements list or numpy ndarray or single scalar value")
+        elif isinstance(z0_ports, np.int) or isinstance(z0_ports, np.float):
+            z0_ports = np.ones(self.__nPorts) * np.abs(z0_ports.real)
+        elif len(z0_ports) != self.__nPorts:
+            raise TypeError("z0_ports must be a self.nPorts real value elements list or numpy ndarray or single scalar value")
+        else:
+            z0_ports = np.abs(np.array(z0_ports).real)
+            
+        e_field_pnt = np.copy(self.e_field[freq_idx,:,:,point_index]) # e_field in point due to 1 W incident power in relevant ports
+        e_field_pnt /= np.sqrt(z0_ports[:,None]) # e_field_pnt is referred to 1 Volt incident voltage in relevant ports
+            
+        q_matrix = np.linalg.norm(np.eye(self.nPorts) @ e_field_pnt, axis = -1)**2 # self.nPorts x 1
+        q_matrix = np.diag(q_matrix)
+        q_matrix = q_matrix.astype('complex')
+        
+        for row in np.arange(self.nPorts): #0 1 2 3
+            for col in np.arange(self.nPorts - row - 1)+1+row:
+                # Real part
+                
+                v_inc = np.zeros(self.nPorts, dtype='complex')
+                v_inc[row] = 1
+                v_inc[col] = 1
+                
+                pd_nm = np.linalg.norm(v_inc @ e_field_pnt)**2
+                
+                q_nm_real = 0.5 * (pd_nm - q_matrix[row, row] - q_matrix[col,col])
+                
+                # Imaginary part
+                
+                v_inc = np.zeros(self.nPorts, dtype='complex')
+                v_inc[row] = 1
+                v_inc[col] = 1j
+                
+                pd_nm = np.linalg.norm(v_inc @ e_field_pnt)**2
+                
+                q_nm_imag = -0.5 * (pd_nm - q_matrix[row, row] - q_matrix[col,col])
+                
+                # q_nm entry
+                q_nm = q_nm_real + 1j*q_nm_imag
+                
+                q_matrix[row,col] = q_nm
+
+        q_matrix = q_matrix + np.conjugate(q_matrix.T) - np.diag(q_matrix)*np.eye(self.nPorts)
+        q_matrix *= elCond
+        
+        return q_matrix
+    
     
     def plotB(self, comp, freq, port, plane, sliceIdx, vmin=None, vmax=None):
         
         if self.__b_field is None:
-            raise ValueError("No b_field property is specifed for the EM_Field instance")
+            raise ValueError("No b_field property is specified for the EM_Field instance")
             
         f_idx = np.where(self.__freqs==freq)[0][0]
         if f_idx is None:
@@ -242,7 +316,7 @@ class EM_Field():
     def plotE(self, comp, freq, port, plane, sliceIdx, vmin=None, vmax=None):
         
         if self.__e_field is None:
-            raise ValueError("No e_field property is specifed for the EM_Field instance")
+            raise ValueError("No e_field property is specified for the EM_Field instance")
             
         f_idx = np.where(self.__freqs==freq)[0][0]
         if f_idx is None:
@@ -406,8 +480,8 @@ class EM_Field():
                         f["%d_MHz/Port_%d/Eimag"%(freq/1e6, port+1)] = np.imag(e_field[i,port]).T
             for p in self.__prop:
                 f["Properties/%s"%p] = self.__prop[p]
-                  
-                
+        
+        
     def _newFieldComp(self, p_incM, phaseM):
         
         if p_incM.shape != phaseM.shape:
