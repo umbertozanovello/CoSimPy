@@ -195,7 +195,7 @@ class EM_Field():
         if point.shape != (3,):
             raise TypeError("point must be a 3 element list or numpy ndarray")
 
-        point_index = point[2]*self.__Points[0]*self.__nPoints[1] + point[1]*self.__nPoints[0] + point[0] #index of the selected point according to the 'Fortran' flatten order
+        point_index = point[2]*self.__nPoints[0]*self.__nPoints[1] + point[1]*self.__nPoints[0] + point[0] #index of the selected point according to the 'Fortran' flatten order
         
         freq_idx = np.where(self.__freqs==freq)[0][0]
         if freq_idx is None:
