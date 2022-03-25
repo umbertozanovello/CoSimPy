@@ -205,7 +205,7 @@ class EM_Field():
             raise TypeError("elCond must be None or a single scalar number representative of the electrical conductivity in point")
         elif elCond is None and "elCond" in self.__prop.keys():
             elCond = self.__prop["elCond"][point_index]
-        elif elCond is None: #No electrical conductivi is passed as argument and a relevant property is not present
+        elif elCond is None: #No electrical conductivity is passed as argument and a relevant property is not present
             elCond = 1
         
         if not isinstance(z0_ports, np.ndarray) and not isinstance(z0_ports, list) and not isinstance(z0_ports, np.int) and not isinstance(z0_ports, np.float):
