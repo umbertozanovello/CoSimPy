@@ -13,7 +13,7 @@ CoSimPy is an open source Python library aiming to combine results from electrom
 
 ## Getting Started
 
-The library has been developed with Python 3.7 and succesfully tested down to Python 3.5 up to Python 3.10 on Linux, Windows and macOS
+The library has been developed with Python 3.7 and successfully tested down to Python 3.5 up to Python 3.10 on Linux, Windows and macOS
 
 ### Prerequisites
 
