@@ -1,5 +1,5 @@
 theme: jekyll-theme-midnight
-title: cosimpy
+title: CoSimPy
 author: umbertozanovello
-tagline: Python electromagnetic co-simulation library
-description: CoSimPy is an open source Pyhton library optimised for Magnetic Resonance Imaging (MRI) Radiofrequency (RF) Coil design. The library aims to combine results from electromagnetic (EM) simulations with circuit analysis through a co-simulation environment.
+tagline: Python electromagnetic cosimulation library
+description: CoSimPy is an open source Pyhton library optimised for Magnetic Resonance Imaging (MRI) Radiofrequency (RF) Coil design. The library aims to combine results from electromagnetic (EM) simulations with circuit analysis through a cosimulation environment.
