@@ -8,7 +8,7 @@ from scipy.optimize.nonlin import NoConvergence
 from functools import partial
 from copy import copy
 import warnings
-import sys
+from .Exceptions import S_MatrixError, S_MatrixArrayError, S_MatrixFrequenciesError, S_MatrixPortImpedancesError
 
 def warning_format(message, category, filename, lineno, file=None, line=None):
     return '\n%s: Line %s - WARNING - %s\n' % (filename.split("/")[-1], lineno, message)
@@ -26,36 +26,10 @@ class S_Matrix():
         else:
             self.__info_warnings = False
             
-        if not isinstance(S, np.ndarray): 
-            raise TypeError("S matrix can only be numpy ndarray")
-        elif not isinstance(freqs, np.ndarray) and not isinstance(freqs, list): 
-             raise TypeError("Frequencies can only be an Nf list or numpy.ndarray")
-        elif (np.unique(freqs,return_counts=True)[1] > 1).any():
-            raise ValueError("At least one frequency value is not unique in freqs")
-        elif (isinstance(z0, np.ndarray) or isinstance(z0, list)) and len(z0) != S.shape[1]:
-            raise TypeError("The port impedances list is not compatible with the S matrix ports number")
-        elif len(S.shape) != 3:
-             raise TypeError("S matrix can only be an Nf x Np x Np matrix (also 1 x 1 x 1 is accepted in case of single load at single frequency")
-        elif S.shape[1] != S.shape[2]:
-             raise TypeError("S matrix can only be a Nf square matrices")
-        elif len(freqs) != S.shape[0]:
-             raise TypeError("The frequencies list is not compatible with the S matrix first dimension")
-        elif (np.round(np.abs(S),6) > 1).any():
-            warnings.warn("An S parameter higher than one has been found. Results could be unphysical at least at one frequency value. Healing the S matrix with the healSMatrix method could solve the problem")
-            if self.__info_warnings:
-                print("\nMax |S_ij|:\n")
-                print(np.max(np.abs(S)))
+        S_MatrixArrayError.check(S, self.__info_warnings)
+        S_MatrixFrequenciesError.check(freqs, S.shape[0])
+        S_MatrixPortImpedancesError.check(z0, S.shape[1])
         
-        # Check for positive definiteness of II - (S^H)(S)
-        p = np.eye(S.shape[1]) - S @ np.conjugate(np.transpose(S,axes=[0,2,1]))
-        not_nan_idxs = np.where(np.logical_not(np.isnan(p).any(axis=(1,2))))[0] #idx of new_P first dimension where no nan values along the other two dimensions are encountered
-        if (np.round(np.real(np.linalg.eigvals(p[not_nan_idxs])),6) < 0).any():
-            warnings.warn("The S matrix seems to be unphysical at least at one frequency value. Healing the S matrix with the healSMatrix method could solve the problem")
-            if self.__info_warnings:
-                print("\nEigenvalues of II - S^H @ S:\n")
-                print(np.real(np.linalg.eigvals(np.eye(S.shape[1]) - S @ np.conjugate(np.transpose(S,axes=[0,2,1])))))
-
-
         self.__S = np.array(S,dtype = "complex")
         self.__f = np.array(freqs) #Hz
         self.__n_f = len(freqs)
@@ -64,17 +38,10 @@ class S_Matrix():
         
         
         if not isinstance(z0, np.ndarray) and not isinstance(z0, list):
-            self.__z0 = z0 * np.ones(self.__nPorts)
+            self.__z0 = np.real(z0) * np.ones(self.__nPorts)
         else:
-            self.__z0 = np.array(z0)
-        
-        if (np.real(self.__z0) <= 0).any():
-            raise ValueError("The real part of all the port impedances has to be higher than zero")
-        elif (np.real(self.__z0) != self.__z0).any():
-            warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
-            self.__z0 = np.real(self.__z0)
+            self.__z0 = np.real(np.array(z0))
                 
-    
     
     @property
     def S(self):
@@ -102,6 +69,7 @@ class S_Matrix():
         
     
     def __repr__(self):
+        
         string = '"""""""""""""""\n   S MATRIX\n"""""""""""""""\n\n'
         string += "|V-| = |S||V+|\n|%d x 1| = |%d x %d||%d x 1|\n\nNumber of frequency values = %d\n\n"%(self.__nPorts,self.__nPorts,self.__nPorts,self.__nPorts, self.__n_f)
         
@@ -112,17 +80,15 @@ class S_Matrix():
     
     def __getitem__(self, key):
         
+        ret_S_Matrix = copy(self)
+        
         if isinstance(key,int) or isinstance(key,float):
-            idx = self.__findFreqIndex(key)
-            ret_S = np.expand_dims(self.__S[idx], axis = 0)
-            ret_frequencies = [self.__f[idx]]
-            
+            idx = [self.__findFreqIndex(key)] # idx is 1 element list. This guarantees that the shape length of the returned matrices is conserved
+                
         elif isinstance(key,tuple) or isinstance(key,list) or isinstance(key,np.ndarray):
             if isinstance(key,np.ndarray) and len(key.shape) > 1:
-                raise SyntaxError
-            idxs = list(map(self.__findFreqIndex, key))
-            ret_S = self.__S[idxs]
-            ret_frequencies = self.__f[idxs]
+                raise IndexError
+            idx = list(map(self.__findFreqIndex, key)) # idx is a list
             
         elif isinstance(key,slice):
             if key.start is None:
@@ -133,23 +99,31 @@ class S_Matrix():
                 idx1 = self.__n_f
             else:
                 idx1 = self.__findFreqIndex(key.stop)
-            
-            ret_S = self.__S[idx0:idx1]
-            ret_frequencies = self.__f[idx0:idx1]
-            
-        return S_Matrix(ret_S, ret_frequencies)
+            idx = slice(idx0,idx1) # idx is a slice
+
+        ret_S_Matrix.__S = ret_S_Matrix.__S[idx]
+        ret_S_Matrix.__f = ret_S_Matrix.__f[idx]
+        if hasattr(self, "_p_incM"):
+            ret_S_Matrix._p_incM = ret_S_Matrix._p_incM[idx]
+        if hasattr(self, "_p_incM"):
+            ret_S_Matrix._phaseM = ret_S_Matrix._phaseM[idx]
+        if ret_S_Matrix._S0 is not None:
+            ret_S_Matrix._S0 = ret_S_Matrix._S0[key]
+        ret_S_Matrix.__n_f = ret_S_Matrix.__f.size
+        
+        return ret_S_Matrix
     
     
     def __add__(self, other):
         
         if not isinstance(other, S_Matrix): 
-            raise TypeError("Series operation can be performed only between two 1-port S_Matrix instances")
+            raise S_MatrixError("Series operation can be performed only between two 1-port S_Matrix instances")
         elif self.__nPorts != 1 or other.__nPorts != 1:
-            raise TypeError("Series operation can be performed only between two 1-port S_Matrix instances")
+            raise S_MatrixError("Series operation can be performed only between two 1-port S_Matrix instances")
         elif not np.array_equal(self.__f, other.__f):
-            raise ValueError("The S_Matrix instances must be defined over the same frequency values")
+            raise S_MatrixFrequenciesError("The S_Matrix instances must be defined over the same frequency values")
         elif not np.array_equal(self.__z0, other.__z0):
-            raise ValueError("The port impedances of the S_Matrix instances must be the same")
+            raise S_MatrixPortImpedancesError("The port impedances of the S_Matrix instances must be the same")
             
         z0 = self.__z0[0]
         
@@ -165,13 +139,13 @@ class S_Matrix():
     def __mul__(self, other):
         
         if not isinstance(other, S_Matrix): 
-            raise TypeError("Parallel operation can be performed only between two 1-port S_Matrix instances")
+            raise S_MatrixError("Parallel operation can be performed only between two 1-port S_Matrix instances")
         elif self.__nPorts != 1 or other.__nPorts != 1:
-            raise TypeError("Parallel operation can be performed only between two 1-port S_Matrix instances")
+            raise S_MatrixError("Parallel operation can be performed only between two 1-port S_Matrix instances")
         elif not np.array_equal(self.__f, other.__f):
-            raise ValueError("The S_Matrix instances must be defined over the same frequency values")
+            raise S_MatrixFrequenciesError("The S_Matrix instances must be defined over the same frequency values")
         elif not np.array_equal(self.__z0, other.__z0):
-            raise ValueError("The port impedances of the S_Matrix instances must be the same")
+            raise S_MatrixPortImpedancesError("The port impedances of the S_Matrix instances must be the same")
             
         z0 = self.__z0[0]
         
@@ -187,13 +161,13 @@ class S_Matrix():
     def __sub__(self, other):
         
         if not isinstance(other, S_Matrix): 
-            raise TypeError("Cascade operation can be performed only between two S_Matrix instances")
+            raise S_MatrixError("Cascade operation can be performed only between two S_Matrix instances")
         elif self.__nPorts + other.__nPorts < 3:
-            raise TypeError("Cascade operation can be performed only if at least one of the two S_Matrix has more than one port")
+            raise S_MatrixError("Cascade operation can be performed only if at least one of the two S_Matrix has more than one port")
         elif not np.array_equal(self.__f, other.__f):
-            raise ValueError("The S_Matrix instances must be defined over the same frequency values")
+            raise S_MatrixFrequenciesError("The S_Matrix instances must be defined over the same frequency values")
         elif self.__z0[-1] != other.__z0[0]:
-            raise ValueError("The last port impedance of the first S_Matrix instance must be the same of the first port impedance of the second S_Matrix instance")
+            raise S_MatrixPortImpedancesError("The last port impedance of the first S_Matrix instance must be the same of the first port impedance of the second S_Matrix instance")
         
         networks = [None]*self.__nPorts
         networks[-1] = other
@@ -204,7 +178,7 @@ class S_Matrix():
     def plotS(self, parameters, dB=True, smooth=True):
         
         if not isinstance(parameters,list) and not isinstance(parameters, np.ndarray):
-            raise TypeError("Parameters should be list or numpy array")
+            raise S_MatrixError("Parameters should be list or numpy array", "plotS")
 
         eligibleParams = []
         smooth_limit = 1000 #If self.__n_f > smooth_limit it does not perform smooth
@@ -214,7 +188,7 @@ class S_Matrix():
                 eligibleParams.append('S%d-%d'%(r+1,c+1))
         for param in parameters:
             if not param in eligibleParams:
-                raise TypeError("One of the parameters is not compliant with the S matrix")
+                raise S_MatrixError("At least one of the parameters is not compliant with the S matrix", "plotS")
         
         if self.n_f <= 2 or self.__n_f > smooth_limit:
             smooth = False
@@ -288,7 +262,7 @@ class S_Matrix():
     def plotSPanel(self, num_nn, smooth=True):
         
         if num_nn >= self.__nPorts:
-            raise ValueError("The number of nearest neighbours to be plotted cannot be higher than self.nPorts-1")
+            raise S_MatrixError("The number of nearest neighbours to be plotted cannot be higher than self.nPorts-1", "plotSPanel")
         
         smooth_limit = 1000 #If self.__n_f > smooth_limit it does not perform smooth
         
@@ -436,11 +410,11 @@ class S_Matrix():
     def powerBalance(self, p_inc):
 
         if not isinstance(p_inc, np.ndarray) and not isinstance(p_inc, list):
-            raise TypeError("p_inc can only be numpy ndarray or a list")
+            raise S_MatrixError("p_inc can only be numpy ndarray or a list")
         else:
             p_inc = np.array(p_inc)
         if p_inc.size != self.__nPorts:
-            raise TypeError("p_inc has to be a self.nPorts length list or numpy ndarray")
+            raise S_MatrixError("p_inc has to be a self.nPorts length list or numpy ndarray")
         
         #Computation of power accepted by the whole system: Original S matrix and connected circuitries
         vp_1 = np.sqrt(self.__z0 * np.abs(p_inc)) * np.exp(1j*np.angle(p_inc))
@@ -470,7 +444,8 @@ class S_Matrix():
         
         return p_acc_1, p_acc_2.flatten()
         
-    
+    #TODO
+    #Implement errors from here
     def healSMatrix(self, report=False, f_tol=1e-10, rdiff=None, **kwarg):
         
         healed_S = np.zeros_like(self.__S)

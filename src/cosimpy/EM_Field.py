@@ -2,6 +2,14 @@ import numpy as np
 from matplotlib import pyplot as plt
 import h5py
 from scipy.io import loadmat
+import warnings
+from copy import copy
+from .Exceptions import *
+
+def warning_format(message, category, filename, lineno, file=None, line=None):
+    return '\n%s: Line %s - WARNING - %s\n' % (filename.split("/")[-1], lineno, message)
+
+warnings.formatwarning = warning_format
 
 class EM_Field():
     
@@ -63,7 +71,7 @@ class EM_Field():
         else:
             self.__b_field = None
             
-        self.__freqs = np.array(freqs)
+        self.__f = np.array(freqs)
         self.__nPoints = nPoints
         self.__n_f = len(freqs)
         self.__prop = kwargs
@@ -96,7 +104,7 @@ class EM_Field():
     
     @property
     def frequencies(self):
-        return self.__freqs
+        return self.__f
     
     
     @property
@@ -115,6 +123,40 @@ class EM_Field():
             for key in self.__prop:
                 string += "'%s' additional property defined\n" %key
         return string
+    
+    
+    def __getitem__(self, key):
+        # FIXME
+        # Set proper extraction for properties
+        ret_em_field = copy(self)
+        
+        if isinstance(key,int) or isinstance(key,float):
+            idx = [self.__findFreqIndex(key)] # idx is 1 element list. This guarantees that the shape length of the returned matrices is conserved
+            
+        elif isinstance(key,tuple) or isinstance(key,list) or isinstance(key,np.ndarray):
+            if isinstance(key,np.ndarray) and len(key.shape) > 1:
+                raise IndexError
+            idx = list(map(self.__findFreqIndex, key)) # idx is a list
+            
+        elif isinstance(key,slice):
+            if key.start is None:
+                idx0 = 0
+            else:
+                idx0 = self.__findFreqIndex(key.start)
+            if key.stop is None:
+                idx1 = self.__n_f
+            else:
+                idx1 = self.__findFreqIndex(key.stop)
+            
+            idx = slice(idx0,idx1) # idx is a slice
+            
+        if ret_em_field.__e_field is not None:
+            ret_em_field.__e_field = ret_em_field.__e_field[idx]
+        if ret_em_field.__b_field is not None:
+            ret_em_field.__b_field = ret_em_field.__b_field[idx]
+        ret_em_field.__freqs = ret_em_field.__f[idx]
+            
+        return ret_em_field
     
     
     def compSensitivities(self):
@@ -197,7 +239,7 @@ class EM_Field():
 
         point_index = point[2]*self.__nPoints[0]*self.__nPoints[1] + point[1]*self.__nPoints[0] + point[0] #index of the selected point according to the 'Fortran' flatten order
         
-        freq_idx = np.where(self.__freqs==freq)[0][0]
+        freq_idx = np.where(self.__f==freq)[0][0]
         if freq_idx is None:
             raise ValueError("No E field for the specified frequency")
 
@@ -220,49 +262,18 @@ class EM_Field():
         e_field_pnt = np.copy(self.e_field[freq_idx,:,:,point_index]) # e_field in point due to 1 W incident power in relevant ports
         e_field_pnt /= np.sqrt(z0_ports[:,None]) # e_field_pnt is referred to 1 Volt incident voltage in relevant ports
             
-        q_matrix = np.linalg.norm(np.eye(self.nPorts) @ e_field_pnt, axis = -1)**2 # self.nPorts x 1
-        q_matrix = np.diag(q_matrix)
-        q_matrix = q_matrix.astype('complex')
-        
-        for row in np.arange(self.nPorts): #0 1 2 3
-            for col in np.arange(self.nPorts - row - 1)+1+row:
-                # Real part
-                
-                v_inc = np.zeros(self.nPorts, dtype='complex')
-                v_inc[row] = 1
-                v_inc[col] = 1
-                
-                pd_nm = np.linalg.norm(v_inc @ e_field_pnt)**2
-                
-                q_nm_real = 0.5 * (pd_nm - q_matrix[row, row] - q_matrix[col,col])
-                
-                # Imaginary part
-                
-                v_inc = np.zeros(self.nPorts, dtype='complex')
-                v_inc[row] = 1
-                v_inc[col] = 1j
-                
-                pd_nm = np.linalg.norm(v_inc @ e_field_pnt)**2
-                
-                q_nm_imag = -0.5 * (pd_nm - q_matrix[row, row] - q_matrix[col,col])
-                
-                # q_nm entry
-                q_nm = q_nm_real + 1j*q_nm_imag
-                
-                q_matrix[row,col] = q_nm
-
-        q_matrix = q_matrix + np.conjugate(q_matrix.T) - np.diag(q_matrix)*np.eye(self.nPorts)
+        q_matrix = e_field_pnt.conj() @ e_field_pnt.T
         q_matrix *= elCond
         
         return q_matrix
-    
+
     
     def plotB(self, comp, freq, port, plane, sliceIdx, vmin=None, vmax=None):
         
         if self.__b_field is None:
             raise ValueError("No b_field property is specified for the EM_Field instance")
             
-        f_idx = np.where(self.__freqs==freq)[0][0]
+        f_idx = np.where(self.__f==freq)[0][0]
         if f_idx is None:
             raise ValueError("No B field for the specified frequency")
         
@@ -318,7 +329,7 @@ class EM_Field():
         if self.__e_field is None:
             raise ValueError("No e_field property is specified for the EM_Field instance")
             
-        f_idx = np.where(self.__freqs==freq)[0][0]
+        f_idx = np.where(self.__f==freq)[0][0]
         if f_idx is None:
             raise ValueError("No E field for the specified frequency")
         
@@ -420,7 +431,7 @@ class EM_Field():
             f.write('</DataItem>\n')
             f.write('</Geometry>\n')
 
-            for freq in self.__freqs:
+            for freq in self.__f:
                 for port in range(self.__nPorts):
                     if self.__b_field is not None:
                         f.write('<Attribute Type="Vector" Center="Cell" Name="%dMHz-p%d-B_real">\n'%(freq/1e6,port+1))
@@ -464,7 +475,7 @@ class EM_Field():
             f["Mesh/Nodes_Y"] = y
             f["Mesh/Nodes_Z"] = z
 
-            for i,freq in enumerate(self.__freqs):
+            for i,freq in enumerate(self.__f):
                 for port in range(self.__nPorts):
                     if self.__b_field is not None:
                         #Substitute nan values with zero
@@ -481,7 +492,7 @@ class EM_Field():
             for p in self.__prop:
                 f["Properties/%s"%p] = self.__prop[p]
         
-        
+       
     def _newFieldComp(self, p_incM, phaseM):
         
         if p_incM.shape != phaseM.shape:
@@ -514,8 +525,19 @@ class EM_Field():
             bfield_new = bfield_new @ norm
             bfield_new = np.moveaxis(bfield_new,-1,1)
             
-        return EM_Field(self.__freqs, self.__nPoints, bfield_new, efield_new, **self.__prop)
+        return EM_Field(self.__f, self.__nPoints, bfield_new, efield_new, **self.__prop)
             
+    
+    def __findFreqIndex(self, freq):
+        
+        if freq in self.__f:
+            idx = np.where(self.__f == freq)[0][0]
+        else:
+            idx = np.argmin(np.abs(self.__f - freq))
+            warnings.warn("%e Hz is not contained in the frequencies list. %e Hz is returned instead" %(freq, self.__f[idx]))
+        
+        return idx
+    
     
     @classmethod
     def importFields_cst(cls, directory, freqs, nPorts, nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, fileType = 'ascii', col_ascii_order = 0, **kwargs):

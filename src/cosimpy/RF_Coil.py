@@ -20,6 +20,7 @@ class RF_Coil():
         
         self.__s_matrix = s_matrix
         self.__em_field = em_field
+        self.__nPorts = s_matrix.nPorts
     
     
     @property
@@ -32,7 +33,13 @@ class RF_Coil():
         return self.__s_matrix
     
     
+    @property
+    def nPorts(self):
+        return self.__nPorts
+    
+    
     def __repr__(self):
+        
         string = '       """""""""""""""\n           RF COIL\n       """""""""""""""\n\n\n\n'
         string+= '"""""""""""""""\n   S MATRIX\n"""""""""""""""\n\n'
         string += "|V-| = |S||V+|\n|%d x 1| = |%d x %d||%d x 1|\n\nNumber of frequency values = %d\n\n"%(self.s_matrix.nPorts,self.s_matrix.nPorts,self.s_matrix.nPorts,self.s_matrix.nPorts, self.s_matrix.n_f)
@@ -51,6 +58,14 @@ class RF_Coil():
         return string
    
     
+    def __getitem__(self, key):
+        
+        if self.__em_field is not None:
+            return RF_Coil(self.__s_matrix[key], self.__em_field[key])
+        else:
+            return RF_Coil(self.__s_matrix[key], None)
+        
+        
     def singlePortConnRFcoil(self, networks, comp_Pinc=False):
         
         rets = self.s_matrix._singlePortConnSMatrix(networks, comp_Pinc)
