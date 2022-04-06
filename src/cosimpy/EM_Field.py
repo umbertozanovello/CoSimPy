@@ -4,7 +4,7 @@ import h5py
 from scipy.io import loadmat
 import warnings
 from copy import copy
-from .Exceptions import *
+from Exceptions import *
 
 def warning_format(message, category, filename, lineno, file=None, line=None):
     return '\n%s: Line %s - WARNING - %s\n' % (filename.split("/")[-1], lineno, message)
@@ -149,13 +149,13 @@ class EM_Field():
                 idx1 = self.__findFreqIndex(key.stop)
             
             idx = slice(idx0,idx1) # idx is a slice
-            
+
         if ret_em_field.__e_field is not None:
             ret_em_field.__e_field = ret_em_field.__e_field[idx]
         if ret_em_field.__b_field is not None:
             ret_em_field.__b_field = ret_em_field.__b_field[idx]
-        ret_em_field.__freqs = ret_em_field.__f[idx]
-            
+        ret_em_field.__f = ret_em_field.__f[idx]
+
         return ret_em_field
     
     

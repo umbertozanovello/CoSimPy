@@ -1140,6 +1140,70 @@ Returns
 * string : *string* <br>
 The string identifies the class of the instance. It reports the number of frequency values, the number of ports and the number of spatial points over which the EM field is defined
 
+#### `__getitem__(self, key)`
+
+Indexing method for *EM_Field* instances. Indices are interpreted as frequency values.
+
+Parameters
+
+* key : *tuple*, *list*, *numpy ndarray*, *int*, *float*, *slice* <br>
+frequency values used to index the `self` *EM_Field*
+
+Returns
+
+* EM_Field : *EM_Field*
+
+Example
+```python
+import numpy as np
+from cosimpy import *
+
+n_p = 5 #Number of ports
+n_f = 10 #Number of frequency values 
+n_points = [10,10,10] #Number of points
+
+frequencies = np.linspace(50e6, 150e6, n_f, endpoint=False)
+
+e_field = np.random.random(size=(n_f,n_p,3,np.prod(n_points))) + 1j*np.random.random(size=(n_f,n_p,3,np.prod(n_points)))
+b_field = None
+
+em_field = EM_Field(frequencies, n_points, b_field, e_field)
+
+em_field.frequencies
+
+'''
+Out:
+
+    array([5.0e+07, 6.0e+07, 7.0e+07, 8.0e+07, 9.0e+07, 1.0e+08, 1.1e+08,
+       1.2e+08, 1.3e+08, 1.4e+08])
+'''
+
+em_field[90e6:].frequencies
+
+'''
+Out:
+
+    array([9.0e+07, 1.0e+08, 1.1e+08, 1.2e+08, 1.3e+08, 1.4e+08])
+'''
+
+em_field[90e6:130e6].frequencies
+
+'''
+Out:
+
+    array([9.0e+07, 1.0e+08, 1.1e+08, 1.2e+08])
+'''
+em_field[95e6].frequencies
+
+'''
+Out:
+
+'WARNING: 9.500000e+07 Hz is not contained in the frequencies list. 9.000000e+07 Hz is returned instead'
+    array([90000000.])
+
+'''
+```
+
 #### `compSensitivities(self)`
 
 If the magnetic flux density field is defined, the method returns the complex B<sub>1</sub><sup>+</sup> and B<sub>1</sub><sup>-</sup> values.
@@ -1404,6 +1468,8 @@ This class represents the link between the *S_Matrix* and *EM_Field* classes. An
 *S_Matrix* instance defined over N<sub>f,s</sub> frequency values and with N<sub>P</sub> ports
 * `RF_Coil.em_field` : *EM_Field*<br>
 *EM_Field* instance defined over N<sub>f,em</sub> frequency values and with N<sub>P</sub> ports
+* `RF_Coil.nPorts` : *int* <br>
+number of ports associated with the RF coil (N<sub>P</sub>)
 
 ### Methods
 

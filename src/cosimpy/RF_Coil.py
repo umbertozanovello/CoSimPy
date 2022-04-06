@@ -56,14 +56,6 @@ class RF_Coil():
         if self.__s_matrix._S0 is not None:
             string += "The RF coil is the result of previous connections and/or manipulations with a %d ports original RF coil\n\n"%self.__s_matrix._S0.nPorts
         return string
-   
-    
-    def __getitem__(self, key):
-        
-        if self.__em_field is not None:
-            return RF_Coil(self.__s_matrix[key], self.__em_field[key])
-        else:
-            return RF_Coil(self.__s_matrix[key], None)
         
         
     def singlePortConnRFcoil(self, networks, comp_Pinc=False):
