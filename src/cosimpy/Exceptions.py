@@ -10,14 +10,14 @@ class S_MatrixError(Exception):
     General error class relevant to the S_Matrix class
     """
     
-    def __init__(self, message, callingMethod=None):
+    def __init__(self, message="", callingMethod=None):
         super().__init__(message)
         self.__message = message
         self.__callingMethod = callingMethod
     
     def __str__(self):
         if self.__callingMethod is None:
-            return self.message
+            return self.__message
         else:
             return "S_Matrix.%s: %s" %(self.__callingMethod, self.__message)
 
@@ -27,8 +27,8 @@ class S_MatrixArrayError(S_MatrixError):
     Error relevant to the S_Matrix array
     """
     
-    def __init__(self, message):
-        super().__init__(message)
+    def __init__(self, message="", callingMethod=None):
+        super().__init__(message, callingMethod)
         self.__message = message
     
     @classmethod
@@ -63,8 +63,8 @@ class S_MatrixFrequenciesError(S_MatrixError):
     Error relevant to the frequencies list
     """
     
-    def __init__(self, message):
-        super().__init__(message)
+    def __init__(self, message="", callingMethod=None):
+        super().__init__(message, callingMethod)
         self.__message = message
         
     @classmethod
@@ -82,8 +82,8 @@ class S_MatrixPortImpedancesError(S_MatrixError):
     Error relevant to the port impedances list
     """
     
-    def __init__(self, message):
-        super().__init__(message)
+    def __init__(self, message="", callingMethod=None):
+        super().__init__(message, callingMethod)
         self.__message = message
         
     @classmethod
@@ -96,3 +96,15 @@ class S_MatrixPortImpedancesError(S_MatrixError):
             raise cls("The real part of all the port impedances has to be higher than zero")
         elif (np.array(np.real(z0)) != np.array(z0)).any():
             warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
+            
+            
+class S_MatrixTouchstoneFileError(S_MatrixError):
+    """
+    Error relevant to the Touchstone file import/export
+    """
+    
+    def __init__(self, message="", callingMethod=None):
+        super().__init__(message, callingMethod)
+        self.__message = message
+        
+    

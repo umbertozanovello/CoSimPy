@@ -8,7 +8,7 @@ from scipy.optimize.nonlin import NoConvergence
 from functools import partial
 from copy import copy
 import warnings
-from .Exceptions import S_MatrixError, S_MatrixArrayError, S_MatrixFrequenciesError, S_MatrixPortImpedancesError
+from Exceptions import S_MatrixError, S_MatrixArrayError, S_MatrixFrequenciesError, S_MatrixPortImpedancesError, S_MatrixTouchstoneFileError
 
 def warning_format(message, category, filename, lineno, file=None, line=None):
     return '\n%s: Line %s - WARNING - %s\n' % (filename.split("/")[-1], lineno, message)
@@ -444,8 +444,7 @@ class S_Matrix():
         
         return p_acc_1, p_acc_2.flatten()
         
-    #TODO
-    #Implement errors from here
+
     def healSMatrix(self, report=False, f_tol=1e-10, rdiff=None, **kwarg):
         
         healed_S = np.zeros_like(self.__S)
@@ -515,130 +514,136 @@ class S_Matrix():
         
     def exportTouchstone(self, filename, version="1.1", options=None):
         
-        default_options = {}
-        default_options["format"] = "MA"
-        default_options["frequency_unit"] = "GHz"
-        default_options["parameter"] = "S"
-        
-        if filename.split(".")[-1] != ".s%dp"%self.__nPorts:
-            filename += ".s%dp"%self.__nPorts
-        
-        if options is None:
-            options = default_options
-        else:
-            if "format" in options.keys() :
-                if options["format"].upper()  not in ['RI', 'MA', 'DB', 'MA_RAD', 'DB_RAD']:
-                    raise ValueError("format is not valid")
+        try:
+            default_options = {}
+            default_options["format"] = "MA"
+            default_options["frequency_unit"] = "GHz"
+            default_options["parameter"] = "S"
+            
+            if filename.split(".")[-1] != ".s%dp"%self.__nPorts:
+                filename += ".s%dp"%self.__nPorts
+            
+            if options is None:
+                options = default_options
             else:
-                options["format"] = default_options["format"]
-                
-            if "frequency_unit" in options.keys():
-                if options["frequency_unit"].upper()  not in ['HZ', 'KHZ', 'MHZ', 'GHZ']:
-                    raise ValueError("frequency_unit is not valid")
-            else:
-                options["frequency_unit"] = default_options["frequency_unit"]
-                
-            if "parameter" in options.keys():
-                if options["parameter"].upper()  not in ['S', 'Y', 'Z']:
-                    raise ValueError("parameter is not valid")
-            else:
-                options["parameter"] = default_options["parameter"]
-
-        header = "!"
-        header += "-"*65
-        header += "\n! Created by CoSimPy%s\n!" %("" if version is None else "\n! EIA/IBIS Open Forum Touchstone (R) File Format Specifications v. %s"%version)
-        header += "-"*65
-        header += "\n# %s %s %s R " %(options["frequency_unit"], options["parameter"], options["format"])
-        if (self.__z0 == self.__z0[0]).all(): #Same z0 for all ports
-            header += "%.2f" %(self.__z0[0])
-        elif version == None:
-            header += " ".join("%.2f"%(z0) for z0 in self.__z0)
-        elif version == "1.1":
-            raise ValueError("Version 1.1 of the Touchstone file format does not support different port impedances.")
-            
-        if options["frequency_unit"].upper() == 'HZ':
-            frequencies = self.__f
-        elif options["frequency_unit"].upper() == 'KHZ':
-            frequencies = 1e-3*self.__f
-        elif options["frequency_unit"].upper() == 'MHZ':
-            frequencies = 1e-6*self.__f
-        elif options["frequency_unit"].upper() == 'GHZ':
-            frequencies = 1e-9*self.__f
-        
-        
-        if options["parameter"] == 'S':
-            param_array = self.__S
-        elif options["parameter"] == 'Y':
-            param_array = self.getYMatrix()
-            if version == "1.1":
-                param_array /= 1/self.__z0[0] #In version 1.1 Y parameters are normalised with respect to the reference impedance (inverse?)
-        elif options["parameter"] == 'Z':
-            param_array = self.getZMatrix()
-            if version == "1.1":
-                param_array /= self.__z0[0] #In version 1.1 Z parameters are normalised with respect to the reference impedance
-        
-        if version is None: #Each line corresponds to a frequency value followed by the parameters
-            # frequencies = np.expand_dims(frequencies,axis=-1)
-            param_flat = param_array.reshape([self.__n_f,-1]) #[[S11, S12, ..., S1n, S21, S22, ...],...]
-            
-            data = np.zeros([self.__n_f, 1+2*(self.__nPorts**2)], dtype=np.float)
-            data[:,0] = frequencies
-            data[:,1::2] = np.real(param_flat)
-            data[:,2::2] = np.imag(param_flat)
-    
-            np.savetxt(filename, data, header=header, fmt="%.6f", delimiter="\t", comments="")
-            
-        elif version == "1.1":
-            
-            if self.__nPorts == 2:
-                param_array = np.transpose(param_array,axes=[0,2,1]) #In version 1.1 p11 p21 p12 p22 ...
-            
-            param_flat = param_array.flatten()
-            param_A = np.real(param_flat)
-            param_B = np.imag(param_flat)
-            
-            with open(filename,"w") as f:
-                f.write(header)
-                f.write("\n")
-                
-                idx = 0
-                for frequency in frequencies:
-                    f.write("%f\t" %frequency)
-                    if self.__nPorts <=2:
-                        for _ in range(self.__nPorts**2):
-                            f.write("%f\t"%param_A[idx])
-                            f.write("%f\t"%param_B[idx])
-                            idx +=1
-                        f.write("\n")
+                if "format" in options.keys() :
+                    if options["format"].upper()  not in ['RI', 'MA', 'DB', 'MA_RAD', 'DB_RAD']:
+                        raise S_MatrixTouchstoneFileError("The format string in option is not valid", "exportTouchstone")
+                else:
+                    options["format"] = default_options["format"]
                     
-                    elif self.__nPorts <=4:
-                        for row in range(self.__nPorts):
-                            for _ in range(self.__nPorts):
-                                f.write("%f\t"%param_A[idx])
-                                f.write("%f\t"%param_B[idx])
-                                idx +=1
-                            f.write("!row %d\n"%(row+1))
-                    else:
-                        for matrix_line in range(self.__nPorts):
-                            param_per_row_counter = 0
-                            is_first_row = True
-                            for _ in range(self.__nPorts):
-                                f.write("%f\t"%param_A[idx])
-                                f.write("%f\t"%param_B[idx])
-                                idx +=1
-                                param_per_row_counter += 1
-                                if param_per_row_counter == 4: #Maximum 4 parameters each row of file
-                                    if is_first_row:
-                                        f.write("!row %d"%(matrix_line+1))
-                                        is_first_row = False
-                                    f.write("\n")
-                                    param_per_row_counter = 0
-                            # f.write("\n")  
-                    # f.write("\n")
-        else:
-            raise ValueError("'version' could only be None or '1.1'")
-     
+                if "frequency_unit" in options.keys():
+                    if options["frequency_unit"].upper()  not in ['HZ', 'KHZ', 'MHZ', 'GHZ']:
+                        raise S_MatrixTouchstoneFileError("The frequency_unit string in optionsis not valid", "exportTouchstone")
+                else:
+                    options["frequency_unit"] = default_options["frequency_unit"]
+                    
+                if "parameter" in options.keys():
+                    if options["parameter"].upper()  not in ['S', 'Y', 'Z']:
+                        raise S_MatrixTouchstoneFileError("The parameter string in option is not valid", "exportTouchstone")
+                else:
+                    options["parameter"] = default_options["parameter"]
+    
+            header = "!"
+            header += "-"*65
+            header += "\n! Created by CoSimPy%s\n!" %("" if version is None else "\n! EIA/IBIS Open Forum Touchstone (R) File Format Specifications v. %s"%version)
+            header += "-"*65
+            header += "\n# %s %s %s R " %(options["frequency_unit"], options["parameter"], options["format"])
+            if (self.__z0 == self.__z0[0]).all(): #Same z0 for all ports
+                header += "%.2f" %(self.__z0[0])
+            elif version == None:
+                header += " ".join("%.2f"%(z0) for z0 in self.__z0)
+            elif version == "1.1":
+                raise S_MatrixTouchstoneFileError("Version 1.1 of the Touchstone file format does not support different port impedances.", "exportTouchstone")
+                
+            if options["frequency_unit"].upper() == 'HZ':
+                frequencies = self.__f
+            elif options["frequency_unit"].upper() == 'KHZ':
+                frequencies = 1e-3*self.__f
+            elif options["frequency_unit"].upper() == 'MHZ':
+                frequencies = 1e-6*self.__f
+            elif options["frequency_unit"].upper() == 'GHZ':
+                frequencies = 1e-9*self.__f
             
+            
+            if options["parameter"] == 'S':
+                param_array = self.__S
+            elif options["parameter"] == 'Y':
+                param_array = self.getYMatrix()
+                if version == "1.1":
+                    param_array /= 1/self.__z0[0] #In version 1.1 Y parameters are normalised with respect to the reference impedance (inverse?)
+            elif options["parameter"] == 'Z':
+                param_array = self.getZMatrix()
+                if version == "1.1":
+                    param_array /= self.__z0[0] #In version 1.1 Z parameters are normalised with respect to the reference impedance
+            
+            if version is None: #Each line corresponds to a frequency value followed by the parameters
+                # frequencies = np.expand_dims(frequencies,axis=-1)
+                param_flat = param_array.reshape([self.__n_f,-1]) #[[S11, S12, ..., S1n, S21, S22, ...],...]
+                
+                data = np.zeros([self.__n_f, 1+2*(self.__nPorts**2)], dtype=np.float)
+                data[:,0] = frequencies
+                data[:,1::2] = np.real(param_flat)
+                data[:,2::2] = np.imag(param_flat)
+        
+                np.savetxt(filename, data, header=header, fmt="%.6f", delimiter="\t", comments="")
+                
+            elif version == "1.1":
+                
+                if self.__nPorts == 2:
+                    param_array = np.transpose(param_array,axes=[0,2,1]) #In version 1.1 p11 p21 p12 p22 ...
+                
+                param_flat = param_array.flatten()
+                param_A = np.real(param_flat)
+                param_B = np.imag(param_flat)
+                
+                with open(filename,"w") as f:
+                    f.write(header)
+                    f.write("\n")
+                    
+                    idx = 0
+                    for frequency in frequencies:
+                        f.write("%f\t" %frequency)
+                        if self.__nPorts <=2:
+                            for _ in range(self.__nPorts**2):
+                                f.write("%f\t"%param_A[idx])
+                                f.write("%f\t"%param_B[idx])
+                                idx +=1
+                            f.write("\n")
+                        
+                        elif self.__nPorts <=4:
+                            for row in range(self.__nPorts):
+                                for _ in range(self.__nPorts):
+                                    f.write("%f\t"%param_A[idx])
+                                    f.write("%f\t"%param_B[idx])
+                                    idx +=1
+                                f.write("!row %d\n"%(row+1))
+                        else:
+                            for matrix_line in range(self.__nPorts):
+                                param_per_row_counter = 0
+                                is_first_row = True
+                                for _ in range(self.__nPorts):
+                                    f.write("%f\t"%param_A[idx])
+                                    f.write("%f\t"%param_B[idx])
+                                    idx +=1
+                                    param_per_row_counter += 1
+                                    if param_per_row_counter == 4: #Maximum 4 parameters each row of file
+                                        if is_first_row:
+                                            f.write("!row %d"%(matrix_line+1))
+                                            is_first_row = False
+                                        f.write("\n")
+                                        param_per_row_counter = 0
+                                # f.write("\n")  
+                        # f.write("\n")
+            else:
+                raise S_MatrixTouchstoneFileError("'version' could only be None or '1.1'", "exportTouchstone")                                                         
+                
+        except Exception as e:
+            if not isinstance(e, S_MatrixTouchstoneFileError): # I cast as S_MatrixTouchstoneFileError all other errors
+                raise S_MatrixTouchstoneFileError(e.args[-1], "exportTouchstone")
+            else:
+                raise e
+                
     def _singlePortConnSMatrix(self, networks, comp_Pinc=False):
         
         if len(networks) != self.__nPorts:
@@ -1094,22 +1099,23 @@ class S_Matrix():
     
         return cls(S,freqs,np.diag(z0), **kwarg)
     
-    
+    #TODO
+    #Check and implement errors from here
     @classmethod
     def importTouchstone(cls, filename, version="1.1", options=None, **kwarg):
         
         def test_strings(options):
             #For version = None
             if options["format"].upper()  not in ['RI', 'MA', 'DB', 'MA_RAD', 'DB_RAD']:
-                raise ValueError("format is not valid")
+                raise S_MatrixTouchstoneFileError("The format string in option is not valid", "importTouchstone")
             elif options["frequency_unit"].upper()  not in ['HZ', 'KHZ', 'MHZ', 'GHZ']:
-                raise ValueError("frequency_unit is not valid")
+                raise S_MatrixTouchstoneFileError("The frequency_unit string in option is not valid", "importTouchstone")
             elif options["parameter"].upper()  not in ['S', 'Y', 'Z']:
-                raise ValueError("parameter is not valid")
+                raise S_MatrixTouchstoneFileError("he parameter string in option is not valid", "importTouchstone")
             elif not isinstance(options["number_of_ports"], int) or n_ports <= 0:
-                raise ValueError("number_of_ports must be an integer higher than zero")
+                raise S_MatrixTouchstoneFileError("The number_of_ports in options must be an integer higher than zero", "importTouchstone")
             elif not isinstance(options["port_references"], int) and not isinstance(options["port_references"], float) and not isinstance(options["port_references"], list) and not isinstance(options["port_references"], np.ndarray):
-                raise ValueError("port_references must be an integer, a float, a number_of_ports long list or a number_of_ports long numpy ndarray")
+                raise S_MatrixTouchstoneFileError("The port_references in options must be an integer, a float, a number_of_ports long list or a number_of_ports long numpy ndarray", "importTouchstone")
         
         def readOptions(option_string):
             #Default values
@@ -1143,15 +1149,15 @@ class S_Matrix():
                     
             if version is None: #The touchstone file is not compliant with v1. with reference to "Touchstone® File Format Specification" of IBIS Open Forum
                 if options is None:
-                    raise TypeError("For Touchstone file versions different from v1.1, options argument cannot be None")
+                    raise S_MatrixTouchstoneFileError("For Touchstone file versions different from v1.1, options argument cannot be None", "importTouchstone")
                 if "format" not in options.keys():
-                    raise KeyError("Data format must be reported in the options dictionary under the 'format' keyword")
+                    raise S_MatrixTouchstoneFileError("Data format must be reported in the options dictionary under the 'format' keyword", "importTouchstone")
                 if "frequency_unit" not in options.keys():
-                    raise KeyError("The frequency unit must be reported in the options dictionary under the 'frequency_unit' keyword")
+                    raise S_MatrixTouchstoneFileError("The frequency unit must be reported in the options dictionary under the 'frequency_unit' keyword", "importTouchstone")
                 if "parameter" not in options.keys():
-                    raise KeyError("The parameter information must be reported in the options dictionary under the 'parameter' keyword")
+                    raise S_MatrixTouchstoneFileError("The parameter information must be reported in the options dictionary under the 'parameter' keyword", "importTouchstone")
                 if "number_of_ports" not in options.keys():
-                    raise KeyError("The number of ports must be reported in the options dictionary under the 'number_of_ports' keyword")
+                    raise S_MatrixTouchstoneFileError("The number of ports must be reported in the options dictionary under the 'number_of_ports' keyword", "importTouchstone")
                 else:
                     n_ports = options["number_of_ports"] #The number of ports has to stay in a dedicated variable to be consistent with the code for reading the other Touchstone versions
                 if "port_references" not in options.keys():
@@ -1186,7 +1192,7 @@ class S_Matrix():
                         break #As it read something different from comments or \n as first character of the line, it assumes data are starting
             
             else:
-                raise ValueError("'version' can only be None or '1.1'")
+                raise S_MatrixTouchstoneFileError("'version' can only be None or '1.1'", "importTouchstone")
                 
             data = lines[idx:] #Only data
             for i in range(len(data)): #Remove row comment if present
@@ -1245,8 +1251,10 @@ class S_Matrix():
                 return cls.fromZtoS(parameters, frequencies, ref, **kwarg)
             
         except Exception as e:
-            print("Something went wrong. Please check the file and method's arguments")
-            print("(%s: %s)"%(type(e).__name__, e))
+            if not isinstance(e, S_MatrixTouchstoneFileError): # I cast as S_MatrixTouchstoneFileError all other errors
+                raise S_MatrixTouchstoneFileError(e.args[-1], "importTouchstone")
+            else:
+                raise e
      
     @classmethod
     def sMatrixOpen(cls, freqs, z0=50):
