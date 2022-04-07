@@ -7,8 +7,22 @@ Created on Thu Jan  6 10:24:28 2022
 """
 
 import numpy as np
-from cosimpy import *
 import sys, os
+import tempfile
+import pytest
+
+# For running without packaging. In python console type pytest.main(["optional_cmd_options"])
+packaging = False # Set to False to run tests in the developement stage
+
+if packaging:
+    from cosimpy import *
+else:
+    COSIMPY_DIR = os.path.dirname(os.path.abspath(__file__)).split("/")
+    COSIMPY_DIR = '/'.join(COSIMPY_DIR[:-1]) + "/src"
+    sys.path.append(COSIMPY_DIR)
+    from src.cosimpy.S_Matrix import *
+    from src.cosimpy.EM_Field import *
+    from src.cosimpy.RF_Coil import *
 
 test1 = True
 test2 = True
@@ -19,6 +33,14 @@ test6 = True
 test7 = True
 test8 = True
 test9 = True
+test10 = True
+testE1 = True
+testE2 = True
+testE3 = True
+
+
+
+
 
 if test1:
     def test1():
@@ -150,7 +172,7 @@ if test4:
         """
         
         directory = os.path.join(os.path.dirname(__file__),"filesForTests")
-        s_matrix = S_Matrix.importTouchstone(directory+"/S_forPowBalance.s8p", freqUnit="Hz")
+        s_matrix = S_Matrix.importTouchstone(directory+"/S_forPowBalance.s8p")
         em_field = EM_Field.importFields_s4l(directory+"/FieldForPowerBalance", [123e6], 8, imp_bfield=False)
         rf_coil = RF_Coil(s_matrix, em_field)
         sup = np.ones(8)
@@ -272,6 +294,7 @@ if test5:
         
         
 if test6:
+    @pytest.mark.slow
     def test6():
         """
         TEST 6: Saving and loading
@@ -285,6 +308,8 @@ if test6:
         orig_rf_coil = RF_Coil(s_matrix,em_field)
         S_open = S_Matrix(np.ones([1,1,1]),[123e6])
         rf_coil = orig_rf_coil.singlePortConnRFcoil([None,S_open,None,S_open],True)
+        
+        directory = tempfile.mkdtemp() # To use temporary directory
         
         rf_coil.saveRFCoil(directory+"//saveload_test", "Prova\n\n\n")
         loaded_rf_coil = RF_Coil.loadRFCoil(directory+"//saveload_test.cspy")
@@ -334,6 +359,7 @@ if test7:
         assert np.isclose(res.s_matrix.S,1).all()
     
 if test8:
+    @pytest.mark.filterwarnings("ignore")
     def test8():
         """
         TEST 8: Test multiple connections randomly
@@ -371,7 +397,7 @@ if test9:
         
         elCond = np.random.random(370260)
 
-        s_matrix = S_Matrix.importTouchstone(directory+"/S_forPowBalance.s8p", freqUnit="Hz")
+        s_matrix = S_Matrix.importTouchstone(directory+"/S_forPowBalance.s8p")
         em_field = EM_Field.importFields_s4l(directory+"/FieldForPowerBalance", [123e6], 8, imp_bfield=False, elCond=elCond)
         
         rf_coil = RF_Coil(s_matrix, em_field)
@@ -391,3 +417,61 @@ if test9:
         
         assert(np.isclose(pd_cos,pd_q.real))
 
+if test10:
+    @pytest.mark.filterwarnings("ignore")
+    def test10():
+        """
+        TEST 9: Check Touchstone file import/export
+        """
+        
+        directory = os.path.join(os.path.dirname(__file__),"filesForTests")
+        s_orig = S_Matrix.importTouchstone(directory+"/S_forMultConn.s48p")
+        
+        directory = tempfile.mkdtemp() # To use temporary directory
+        s_orig.exportTouchstone(directory+"/exported_touchstone", options={'format':'RI', 'frequency_unit':'HZ', 'parameter': 'S'})
+        
+        s_loaded = S_Matrix.importTouchstone(directory+"/exported_touchstone.s48p")
+        
+        assert(np.isclose(np.round(s_orig.S,6),s_loaded.S).all())
+        
+        
+if testE1:
+    @pytest.mark.parametrize("s_input, f_input, z0_input",\
+                             [(np.array([[0,1],[1,0]]), [123e6], [50,50]),\
+                              (np.array([[[0,1],[1,0]]]), [123e6, 125e6], [50,50]),\
+                                  (np.array([[[0,1],[1,0]]]), [123e6], [50,-50]),\
+                                      (np.array([[[0,1],[1,0]]]), [123e6], [50])])
+    def testE1(s_input, f_input, z0_input):
+        """
+        TEST E1: Check S_Matrix initialisation exceptions
+        """
+       
+        with pytest.raises(S_MatrixError):
+            S_Matrix(s_input, f_input, z0_input)
+            
+if testE2:
+    @pytest.mark.parametrize("filename_input, version_input, options_input",\
+                             [("not_existent_folder/test_export", "1.1", None),\
+                              ("test_export", 1.1, None),\
+                                  ("-%&4d", None, "options")])
+    def testE2(filename_input, version_input, options_input):
+        """
+        TEST E2: Check exportTouchstone exceptions
+        """
+        
+        s_matrix = S_Matrix(np.array([[[0,1],[1,0]]]), [123e6])
+        with pytest.raises(S_MatrixError):
+            s_matrix.exportTouchstone(filename_input, version_input, options_input)
+if testE3:
+    @pytest.mark.parametrize("filename_input, version_input, options_input",\
+                             [("not_existent_folder/test_export", "1.1", None),\
+                              ("test_export", 1.1, None),\
+                                  ("-%&4d", None, "options")])
+    def testE3(filename_input, version_input, options_input):
+        """
+        TEST E2: Check exportTouchstone exceptions
+        """
+        
+        s_matrix = S_Matrix(np.array([[[0,1],[1,0]]]), [123e6])
+        with pytest.raises(S_MatrixError):
+            s_matrix.importTouchstone(filename_input, version_input, options_input)

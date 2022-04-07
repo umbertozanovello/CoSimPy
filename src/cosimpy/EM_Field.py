@@ -4,7 +4,7 @@ import h5py
 from scipy.io import loadmat
 import warnings
 from copy import copy
-from Exceptions import *
+from .Exceptions import *
 
 def warning_format(message, category, filename, lineno, file=None, line=None):
     return '\n%s: Line %s - WARNING - %s\n' % (filename.split("/")[-1], lineno, message)
@@ -134,8 +134,11 @@ class EM_Field():
             idx = [self.__findFreqIndex(key)] # idx is 1 element list. This guarantees that the shape length of the returned matrices is conserved
             
         elif isinstance(key,tuple) or isinstance(key,list) or isinstance(key,np.ndarray):
-            if isinstance(key,np.ndarray) and len(key.shape) > 1:
+            if len(np.array(key).shape) > 1:
                 raise IndexError
+            #FIXME
+            # if (np.unique(np.array(key),return_counts=True)[1] > 1).any():
+            #     raise EM_FieldError("At least one frequency value is repeated among the indices")
             idx = list(map(self.__findFreqIndex, key)) # idx is a list
             
         elif isinstance(key,slice):

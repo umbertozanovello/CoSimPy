@@ -8,7 +8,7 @@ from scipy.optimize.nonlin import NoConvergence
 from functools import partial
 from copy import copy
 import warnings
-from Exceptions import S_MatrixError, S_MatrixArrayError, S_MatrixFrequenciesError, S_MatrixPortImpedancesError, S_MatrixTouchstoneFileError
+from .Exceptions import S_MatrixError, S_MatrixArrayError, S_MatrixFrequenciesError, S_MatrixPortImpedancesError, S_MatrixTouchstoneFileError
 
 def warning_format(message, category, filename, lineno, file=None, line=None):
     return '\n%s: Line %s - WARNING - %s\n' % (filename.split("/")[-1], lineno, message)
@@ -86,8 +86,10 @@ class S_Matrix():
             idx = [self.__findFreqIndex(key)] # idx is 1 element list. This guarantees that the shape length of the returned matrices is conserved
                 
         elif isinstance(key,tuple) or isinstance(key,list) or isinstance(key,np.ndarray):
-            if isinstance(key,np.ndarray) and len(key.shape) > 1:
+            if len(np.array(key).shape) > 1:
                 raise IndexError
+            if (np.unique(np.array(key),return_counts=True)[1] > 1).any():
+                raise S_MatrixError("At least one frequency value is repeated among the indices")
             idx = list(map(self.__findFreqIndex, key)) # idx is a list
             
         elif isinstance(key,slice):
@@ -523,7 +525,9 @@ class S_Matrix():
             if filename.split(".")[-1] != ".s%dp"%self.__nPorts:
                 filename += ".s%dp"%self.__nPorts
             
-            if options is None:
+            if options is not None and not isinstance(options,dict):
+                raise S_MatrixTouchstoneFileError("options must be None or a dictionary", "exportTouchstone")
+            elif options is None:
                 options = default_options
             else:
                 if "format" in options.keys() :
@@ -639,7 +643,7 @@ class S_Matrix():
                 raise S_MatrixTouchstoneFileError("'version' could only be None or '1.1'", "exportTouchstone")                                                         
                 
         except Exception as e:
-            if not isinstance(e, S_MatrixTouchstoneFileError): # I cast as S_MatrixTouchstoneFileError all other errors
+            if not isinstance(e, S_MatrixError): # I cast as S_MatrixTouchstoneFileError all other errors
                 raise S_MatrixTouchstoneFileError(e.args[-1], "exportTouchstone")
             else:
                 raise e
@@ -1099,8 +1103,7 @@ class S_Matrix():
     
         return cls(S,freqs,np.diag(z0), **kwarg)
     
-    #TODO
-    #Check and implement errors from here
+
     @classmethod
     def importTouchstone(cls, filename, version="1.1", options=None, **kwarg):
         
@@ -1258,19 +1261,17 @@ class S_Matrix():
      
     @classmethod
     def sMatrixOpen(cls, freqs, z0=50):
-        if not isinstance(freqs, list) and not isinstance(freqs, np.ndarray):
-            raise TypeError("freqs can only be a list or numpy.ndarray")
-        else:
-            freqs = np.array(freqs)
+        S_MatrixFrequenciesError.check(freqs)
+        
+        freqs = np.array(freqs)
             
         return cls(np.ones([freqs.size,1,1], dtype="complex"), freqs, z0)
     
     @classmethod
     def sMatrixShort(cls, freqs, z0=50):
-        if not isinstance(freqs, list) and not isinstance(freqs, np.ndarray):
-            raise TypeError("freqs can only be a list or numpy.ndarray")
-        else:
-            freqs = np.array(freqs)
+        S_MatrixFrequenciesError.check(freqs)
+            
+        freqs = np.array(freqs)
             
         return cls(-1*np.ones([freqs.size,1,1], dtype="complex"), freqs, z0)
     
@@ -1278,10 +1279,11 @@ class S_Matrix():
     def sMatrixRCseries(cls, Rvalue, Cvalue, freqs, z0=50):
         
         if Rvalue < 0 or Cvalue <= 0:
-            raise ValueError("Rvalue and Cvalue must be equal or higher than zero")
-        elif np.real(z0) != z0:
-            warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
-            z0 = np.real(z0)
+            raise S_MatrixError("Rvalue and Cvalue must be equal or higher than zero", "sMatrixRCseries")
+        
+        S_MatrixFrequenciesError.check(freqs)
+        S_MatrixPortImpedancesError.check(z0, 1)
+        z0 = np.real(z0)
 
         f = np.array(freqs)
         n_f = len(f)
@@ -1297,10 +1299,11 @@ class S_Matrix():
     def sMatrixRLseries(cls, Rvalue, Lvalue, freqs, z0=50):
         
         if Rvalue < 0 or Lvalue < 0:
-            raise ValueError("Rvalue and Lvalue must be equal or higher than zero")
-        elif np.real(z0) != z0:
-            warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
-            z0 = np.real(z0)
+            raise S_MatrixError("Rvalue and Lvalue must be equal or higher than zero", "sMatrixRLseries")
+        
+        S_MatrixFrequenciesError.check(freqs)
+        S_MatrixPortImpedancesError.check(z0, 1)
+        z0 = np.real(z0)
 
         f = np.array(freqs)
         n_f = len(f)
@@ -1316,11 +1319,12 @@ class S_Matrix():
     def sMatrixRCparallel(cls, Rvalue, Cvalue, freqs, z0=50):
         
         if Rvalue < 0 or Cvalue <= 0:
-            raise ValueError("Rvalue and Cvalue must be equal or higher than zero")
-        elif np.real(z0) != z0:
-            warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
-            z0 = np.real(z0)
-    
+            raise S_MatrixError("Rvalue and Cvalue must be equal or higher than zero", "sMatrixRCparallel")
+        
+        S_MatrixFrequenciesError.check(freqs)
+        S_MatrixPortImpedancesError.check(z0, 1)
+        z0 = np.real(z0)
+        
         f = np.array(freqs)
         n_f = len(f)
         
@@ -1337,10 +1341,11 @@ class S_Matrix():
     def sMatrixRLparallel(cls, Rvalue, Lvalue, freqs, z0=50):
         
         if Rvalue < 0 or Lvalue < 0:
-            raise ValueError("Rvalue and Lvalue must be equal or higher than zero")
-        elif np.real(z0) != z0:
-            warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
-            z0 = np.real(z0)
+            raise S_MatrixError("Rvalue and Lvalue must be equal or higher than zero", "sMatrixRLparallel")
+        
+        S_MatrixFrequenciesError.check(freqs)
+        S_MatrixPortImpedancesError.check(z0, 1)
+        z0 = np.real(z0)
 
         f = np.array(freqs)
         n_f = len(f)
@@ -1359,38 +1364,38 @@ class S_Matrix():
     def sMatrixTnetwork(cls, SL_1, SL_2, ST, z0=50):
         
         if not isinstance(ST, cls):
-            raise TypeError("ST must be an S_Matrix instances")
+            raise S_MatrixError("ST must be an S_Matrix instances", "sMatrixTnetwork")
         elif (ST.nPorts != 1):
-            raise ValueError("ST must be one port S_Matrix instances")
+            raise S_MatrixError("ST must be one port S_Matrix instances", "sMatrixTnetwork")
             
         f = ST.__f
             
         if SL_1 is not None:
             if not isinstance(SL_1, cls):
-                raise TypeError("SL_1 must be None or an S_Matrix instances")
+                raise S_MatrixError("SL_1 must be None or an S_Matrix instances", "sMatrixTnetwork")
             elif (SL_1.nPorts != 1):
-                raise ValueError("SL_1 must be one port S_Matrix instances")
+                raise S_MatrixError("SL_1 must be one port S_Matrix instances", "sMatrixTnetwork")
             if not np.array_equal(SL_1.__f, ST.__f):
-                raise ValueError("SL_1 and ST are defined over different frequency values")
+                raise S_MatrixError("SL_1 and ST are defined over different frequency values", "sMatrixTnetwork")
         else:
             SL_1 = cls(-1*np.ones((f.size,1,1), dtype="complex"), f, 50)
             
         if SL_2 is not None:
             if not isinstance(SL_2, cls):
-                raise TypeError("SL_2 must be None or an S_Matrix instances")
+                raise S_MatrixError("SL_2 must be None or an S_Matrix instances", "sMatrixTnetwork")
             elif (SL_2.nPorts != 1):
-                raise ValueError("SL_2 must be one port S_Matrix instances")
+                raise S_MatrixError("SL_2 must be one port S_Matrix instances", "sMatrixTnetwork")
             elif not np.array_equal(SL_2.__f, ST.__f):
-                raise ValueError("SL_2 and ST are defined over different frequency values")
+                raise S_MatrixError("SL_2 and ST are defined over different frequency values", "sMatrixTnetwork")
         else:
             SL_2 = cls(-1*np.ones((f.size,1,1), dtype="complex"), f, 50)
-            
+        
+        S_MatrixPortImpedancesError.check(z0, 2)
+        
         if isinstance(z0,list) or isinstance(z0,np.ndarray):
-            if len(z0) != 2:
-                raise ValueError("z0 must be a real value or a real values list with length equal to 2")
-            z0 = np.array(z0)
+            z0 = np.array(np.real(z0))
         else:
-            z0 = z0*np.ones(2)
+            z0 = np.real(z0)*np.ones(2)
         
         #Try to avoid some possible Singular Matrix errors
         if (SL_1.__S==1).any() or (SL_2.__S==1).any() or (ST.__S==1).any():
@@ -1420,38 +1425,38 @@ class S_Matrix():
     def sMatrixPInetwork(cls, ST_1, ST_2, SL, z0=50):
 
         if not isinstance(SL, cls):
-            raise TypeError("SL must be an S_Matrix instances")
+            raise S_MatrixError("SL must be an S_Matrix instances", "sMatrixPInetwork")
         elif (SL.nPorts != 1):
-            raise ValueError("SL must be one port S_Matrix instances")
+            raise S_MatrixError("SL must be one port S_Matrix instances", "sMatrixPInetwork")
             
         f = SL.__f
             
         if ST_1 is not None:
             if not isinstance(ST_1, cls):
-                raise TypeError("ST_1 must be None or an S_Matrix instances")
+                raise S_MatrixError("ST_1 must be None or an S_Matrix instances", "sMatrixPInetwork")
             elif (ST_1.nPorts != 1):
-                raise ValueError("ST_1 must be one port S_Matrix instances")
+                raise S_MatrixError("ST_1 must be one port S_Matrix instances", "sMatrixPInetwork")
             if not np.array_equal(ST_1.__f, SL.__f):
-                raise ValueError("ST_1 and SL are defined over different frequency values")
+                raise S_MatrixError("ST_1 and SL are defined over different frequency values", "sMatrixPInetwork")
         else:
             ST_1 = cls(np.ones((f.size,1,1), dtype="complex"), f, 50)
             
         if ST_2 is not None:
             if not isinstance(ST_2, cls):
-                raise TypeError("ST_2 must be None or an S_Matrix instances")
+                raise S_MatrixError("ST_2 must be None or an S_Matrix instances", "sMatrixPInetwork")
             elif (ST_1.nPorts != 1):
-                raise ValueError("ST_2 must be one port S_Matrix instances")
+                raise S_MatrixError("ST_2 must be one port S_Matrix instances", "sMatrixPInetwork")
             if not np.array_equal(ST_2.__f, SL.__f):
-                raise ValueError("ST_2 and SL are defined over different frequency values")
+                raise S_MatrixError("ST_2 and SL are defined over different frequency values", "sMatrixPInetwork")
         else:
             ST_2 = cls(np.ones((f.size,1,1), dtype="complex"), f, 50)
         
+        S_MatrixPortImpedancesError.check(z0, 2)
+                    
         if isinstance(z0,list) or isinstance(z0,np.ndarray):
-            if len(z0) != 2:
-                raise ValueError("z0 must be a real value or a real values list with length equal to 2")
-            y0 = 1. / np.array(z0)
+            y0 = 1. / np.array(np.real(z0))
         else:
-            y0 = (1./z0) * np.ones(2)
+            y0 = (1./np.real(z0)) * np.ones(2)
         
         #Try to avoid some possible Singular Matrix errors
         if (ST_1.__S==-1).any() or (ST_2.__S==-1).any() or (SL.__S==-1).any():
@@ -1482,12 +1487,12 @@ class S_Matrix():
     @classmethod
     def sMatrixTrLine(cls, l, freqs, z0_line=50, c_f = 1, alpha=0, z0=50):
 
+        S_MatrixPortImpedancesError.check(z0,2)
+        
         if isinstance(z0,list) or isinstance(z0,np.ndarray):
-            z0_arr = np.array(z0)
-            if len(z0) != 2:
-                raise ValueError("z0 must be a real value or a real values list with length equal to 2")
+            z0_arr = np.array(np.real(z0))
         else:
-            z0_arr = np.ones(2) * z0
+            z0_arr = np.ones(2) * np.real(z0)
         
         if (np.real(z0_arr) != z0_arr).any():
             warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
@@ -1539,12 +1544,10 @@ class S_Matrix():
     
     @classmethod
     def sMatrixDoubleY(cls, freqs, z0_1stPort=50):
-        if not isinstance(freqs,list) and not isinstance(freqs,np.ndarray):
-                raise ValueError("freqs must be either list or numpy.ndarray")
-                
-        if np.real(z0_1stPort) != z0_1stPort:
-            warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
-            z0_1stPort = np.real(z0_1stPort)
+        S_MatrixFrequenciesError.check(freqs)
+        S_MatrixPortImpedancesError.check(z0_1stPort,1)
+        
+        z0_1stPort = np.real(z0_1stPort)
             
         s_matrix = np.ones((len(freqs),3,3),dtype="complex")*(1-1/3)
         
@@ -1556,12 +1559,10 @@ class S_Matrix():
     
     @classmethod
     def sMatrixDoubleE(cls, freqs, z0_1stPort=50):
-        if not isinstance(freqs,list) and not isinstance(freqs,np.ndarray):
-                raise ValueError("freqs must be either list or numpy.ndarray")
-                
-        if np.real(z0_1stPort) != z0_1stPort:
-            warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
-            z0_1stPort = np.real(z0_1stPort)
+        S_MatrixFrequenciesError.check(freqs)
+        S_MatrixPortImpedancesError.check(z0_1stPort,1)
+        
+        z0_1stPort = np.real(z0_1stPort)
             
         s_matrix = np.ones((len(freqs),3,3),dtype="complex")*(1+1/3)/2
         
@@ -1578,7 +1579,7 @@ class S_Matrix():
     def __movePort(cls, Smat, idx0, idx1):
 
         if not isinstance(Smat, cls):
-            raise TypeError("Smat must be an S_Matrix instance")
+            raise S_MatrixError("Smat must be an S_Matrix instance", "__movePort")
         
         if idx0 < 0:
             idx0 = Smat.__nPorts+idx0

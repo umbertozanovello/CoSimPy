@@ -5,6 +5,7 @@ def warning_format(message, category, filename, lineno, file=None, line=None):
     return '\n%s: Line %s - WARNING - %s\n' % (filename.split("/")[-1], lineno, message)
 warnings.formatwarning = warning_format
 
+
 class S_MatrixError(Exception):
     """
     General error class relevant to the S_Matrix class
@@ -68,13 +69,13 @@ class S_MatrixFrequenciesError(S_MatrixError):
         self.__message = message
         
     @classmethod
-    def check(cls, freqs, expected_length):
+    def check(cls, freqs, expected_length=None):
         if not isinstance(freqs, np.ndarray) and not isinstance(freqs, list): 
-             raise cls("freqs can only be an Nf list or numpy.ndarray")
+             raise cls("freqs can only be a list or numpy.ndarray")
         if (np.unique(freqs,return_counts=True)[1] > 1).any():
             raise cls("At least one frequency value is not unique in freqs")
-        if len(freqs) != expected_length:
-             raise cls("The frequencies list is not compatible with the S matrix first dimension")
+        if expected_length is not None and len(freqs) != expected_length:
+             raise cls("The frequencies list has an unexpected length")
              
              
 class S_MatrixPortImpedancesError(S_MatrixError):
@@ -89,9 +90,9 @@ class S_MatrixPortImpedancesError(S_MatrixError):
     @classmethod
     def check(cls, z0, expected_length):
         if not isinstance(z0, np.ndarray) and not isinstance(z0, list) and not isinstance(z0, int) and not isinstance(z0, float):
-            raise cls("z0 can only be a Np list or numpy ndarray or a scalar in case all ports share the same impedance")
+            raise cls("z0 can only be a list or numpy ndarray or a scalar in case all ports share the same impedance")
         if (isinstance(z0, np.ndarray) or isinstance(z0, list)) and len(z0) != expected_length:
-            raise cls("The port impedances list is not compatible with the S matrix number of ports")
+            raise cls("The port impedances list has an unexpected length")
         if (np.array(np.real(z0)) <= 0).any():
             raise cls("The real part of all the port impedances has to be higher than zero")
         elif (np.array(np.real(z0)) != np.array(z0)).any():
