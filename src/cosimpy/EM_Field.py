@@ -4,7 +4,8 @@ import h5py
 from scipy.io import loadmat
 import warnings
 from copy import copy
-from .Exceptions import *
+from .Exceptions import EM_FieldError, EM_FieldArrayError, EM_FieldFrequenciesError, EM_FieldPointsError\
+    
 
 def warning_format(message, category, filename, lineno, file=None, line=None):
     return '\n%s: Line %s - WARNING - %s\n' % (filename.split("/")[-1], lineno, message)
@@ -15,41 +16,24 @@ class EM_Field():
     
     def __init__(self, freqs, nPoints, b_field=None, e_field=None, **kwargs):
         
-        if not isinstance(freqs, np.ndarray) and not isinstance(freqs, list): 
-             raise TypeError("Frequencies can only be an Nf list")
-        elif (np.unique(freqs,return_counts=True)[1] > 1).any():
-            raise ValueError("At least one frequency value is not unique in freqs")
-        elif not isinstance(nPoints, np.ndarray) and not isinstance(nPoints, list): 
-             raise TypeError("nPoints can only be a list or numpy ndarray with length equal to 3") 
-        elif len(nPoints) != 3:
-             raise TypeError("nPoints can only be a list or numpy ndarray with length equal to 3")
-                
         if e_field is None and b_field is None:
-            raise ValueError("At least one among e_field and b_field arguments has to be different from None")
+            raise EM_FieldArrayError("At least one among e_field and b_field arguments has to be different from None", "__init__")
         
         if e_field is not None:
-            if not isinstance(e_field, np.ndarray):
-                raise TypeError("e_field can only be numpy ndarray")
-            elif len(e_field.shape) != 4:
-                raise ValueError("e_field can only be an Nf x Np x 3 x Nn matrix")
-            elif e_field.shape[0] != len(freqs):
-                raise ValueError("The frequencies list is not compatible with the e_field matrix first dimension")
-            elif e_field.shape[2] != 3:
-                raise ValueError("The third dimension of e_field is expected to be 3 (the number of field components)")
-            elif e_field.shape[3] != np.prod(nPoints):
-                raise ValueError("The fourth dimension of e_field is expected to be equal to nPoints[0]*nPoints[1]*nPoints[2]")
+            EM_FieldArrayError.check(e_field, "__init__")
+            
         if b_field is not None:
-            if not isinstance(b_field, np.ndarray):
-                raise TypeError("b_field can only be numpy ndarray")
-            elif len(b_field.shape) != 4:
-                raise ValueError("b_field can only be an Nf x Np x 3 x Nn matrix")
-            elif b_field.shape[0] != len(freqs):
-                raise ValueError("The frequencies list is not compatible with the b_field matrix first dimension")
-            elif b_field.shape[2] != 3:
-                raise ValueError("The third dimension of b_field is expected to be 3 (the number of field components)")
-            elif b_field.shape[3] != np.prod(nPoints):
-                raise ValueError("The fourth dimension of b_field is expected to be equal to nPoints[0]*nPoints[1]*nPoints[2]")
-
+            EM_FieldArrayError.check(b_field, "__init__")
+                    
+        if e_field is not None:
+            EM_FieldPointsError.check(nPoints, "__init__", e_field.shape[-1])
+            EM_FieldFrequenciesError.check(freqs, "__init__", e_field.shape[0])
+        else:
+            EM_FieldPointsError.check(nPoints, "__init__", b_field.shape[-1])
+            EM_FieldFrequenciesError.check(freqs, "__init__", b_field.shape[0])
+        
+        #TODO
+        # fix the material management
         for arg in kwargs.values():
             if not isinstance(arg, list) and not isinstance(arg, np.ndarray):
                 raise ValueError("All the additional properties have to be list or numpy ndarray of float or int")
@@ -65,14 +49,15 @@ class EM_Field():
             self.__nPorts = e_field.shape[1]
         else:
             self.__e_field = None
+            self.__nPorts = b_field.shape[1]
+            
         if b_field is not None:    
             self.__b_field = np.array(b_field,dtype = "complex")
-            self.__nPorts = b_field.shape[1]
         else:
             self.__b_field = None
             
         self.__f = np.array(freqs)
-        self.__nPoints = nPoints
+        self.__nPoints = np.array(nPoints)
         self.__n_f = len(freqs)
         self.__prop = kwargs
     
@@ -165,7 +150,7 @@ class EM_Field():
     def compSensitivities(self):
         
         if self.__b_field is None:
-            raise ValueError("No b_field property is specified for the EM_Field instance")
+            raise EM_FieldError("No b_field property is specified for the EM_Field instance", "compSensitivities")
         
         sens = np.copy(self.__b_field * np.sqrt(2)) # b_field contains rms values of the B field
         sens = np.delete(sens, 2, axis = 2)
@@ -181,6 +166,7 @@ class EM_Field():
     
     def compPowDens(self, elCond=None, p_inc=None):
         
+        #FIXME
         if elCond is None and not "elCond" in self.__prop.keys():
             raise ValueError("No 'elCond' key is found in self.properties. Please, provide the electrical conductivity as argument of the method")
         elif elCond is not None:
@@ -194,15 +180,15 @@ class EM_Field():
             elCond = self.__prop["elCond"]
             
         if self.__e_field is None:
-            raise ValueError("No e field property is specified for the EM_Field instance. Power density cannot be computed")
+            raise EM_FieldError("No e field property is specified for the EM_Field instance. Power density cannot be computed", "compPowDens")
         
         if p_inc is not None: #Power density is computed for a defined supply configuration
             if not isinstance(p_inc, np.ndarray) and not isinstance(p_inc, list):
-                raise TypeError("S matrix can only be numpy ndarray or a list")
+                raise EM_FieldError("p_inc can only be numpy ndarray or a list", "compPowDens")
             else:
                 p_inc = np.array(p_inc)
             if p_inc.size != self.__nPorts:
-                raise TypeError("p_inc has to be a self.nPorts length list or numpy ndarray")
+                raise EM_FieldError("p_inc has to be a self.nPorts length list or numpy ndarray", "compPowDens")
                 
             norm = np.sqrt(np.abs(p_inc))*np.exp(1j*np.angle(p_inc))
             efield_new = np.moveaxis(self.e_field,1,-1) #Temporary axis change so field.shape = [self.n_f, 3, self.nPoints, self.nPorts]
@@ -219,7 +205,7 @@ class EM_Field():
         
 
         if not isinstance(voxVols, int) and not isinstance(voxVols, float):
-            raise ValueError("voxVols has to be int or float")
+            raise EM_FieldError("voxVols has to be int or float", "compDepPow")
             
         powDens = self.compPowDens(elCond, p_inc)
             
@@ -231,21 +217,21 @@ class EM_Field():
     def compQMatrix(self, point, freq, z0_ports=50, elCond=None):
         
         if self.__e_field is None:
-            raise ValueError("No e field property is specified for the EM_Field instance. Power density cannot be computed")
+            raise EM_FieldError("No e field property is specified for the EM_Field instance. Power density cannot be computed", "compQMatrix")
 
-        if not isinstance(point, np.ndarray) and not isinstance(point, list):
-            raise TypeError("point must be a 3 element list or numpy ndarray")
-        else:
-            point = np.array(point)
-        if point.shape != (3,):
-            raise TypeError("point must be a 3 element list or numpy ndarray")
+        EM_FieldPointsError.check(point, "compQMatrix")
+        point = np.array(point)
+        
 
         point_index = point[2]*self.__nPoints[0]*self.__nPoints[1] + point[1]*self.__nPoints[0] + point[0] #index of the selected point according to the 'Fortran' flatten order
         
-        freq_idx = np.where(self.__f==freq)[0][0]
-        if freq_idx is None:
-            raise ValueError("No E field for the specified frequency")
-
+        f_idx = np.where(self.__f==freq)[0]
+        if f_idx.size == 0:
+            raise EM_FieldFrequenciesError("No E field for the specified frequency", "compQMatrix")
+        else:
+            f_idx = f_idx[0]
+            
+        #FIXME
         if elCond is not None and not isinstance(elCond, np.float) and not isinstance(elCond, np.int):
             raise TypeError("elCond must be None or a single scalar number representative of the electrical conductivity in point")
         elif elCond is None and "elCond" in self.__prop.keys():
@@ -253,16 +239,17 @@ class EM_Field():
         elif elCond is None: #No electrical conductivity is passed as argument and a relevant property is not present
             elCond = 1
         
+        
         if not isinstance(z0_ports, np.ndarray) and not isinstance(z0_ports, list) and not isinstance(z0_ports, np.int) and not isinstance(z0_ports, np.float):
-            raise TypeError("z0_ports must be a self.nPorts real value elements list or numpy ndarray or single scalar value")
+            raise EM_FieldError("z0_ports must be a self.nPorts real value elements list or numpy ndarray or single scalar value", "compQMatrix")
         elif isinstance(z0_ports, np.int) or isinstance(z0_ports, np.float):
             z0_ports = np.ones(self.__nPorts) * np.abs(z0_ports.real)
         elif len(z0_ports) != self.__nPorts:
-            raise TypeError("z0_ports must be a self.nPorts real value elements list or numpy ndarray or single scalar value")
+            raise EM_FieldError("z0_ports must be a self.nPorts real value elements list or numpy ndarray or single scalar value", "compQMatrix")
         else:
             z0_ports = np.abs(np.array(z0_ports).real)
             
-        e_field_pnt = np.copy(self.e_field[freq_idx,:,:,point_index]) # e_field in point due to 1 W incident power in relevant ports
+        e_field_pnt = np.copy(self.e_field[f_idx,:,:,point_index]) # e_field in point due to 1 W incident power in relevant ports
         e_field_pnt /= np.sqrt(z0_ports[:,None]) # e_field_pnt is referred to 1 Volt incident voltage in relevant ports
             
         q_matrix = e_field_pnt.conj() @ e_field_pnt.T
@@ -274,14 +261,16 @@ class EM_Field():
     def plotB(self, comp, freq, port, plane, sliceIdx, vmin=None, vmax=None):
         
         if self.__b_field is None:
-            raise ValueError("No b_field property is specified for the EM_Field instance")
+            raise EM_FieldError("No b_field property is specified for the EM_Field instance", "plotB")
             
-        f_idx = np.where(self.__f==freq)[0][0]
-        if f_idx is None:
-            raise ValueError("No B field for the specified frequency")
+        f_idx = np.where(self.__f==freq)[0]
+        if f_idx.size == 0:
+            raise EM_FieldError("No B field for the specified frequency", "plotB")
+        else:
+            f_idx = f_idx[0]
         
         if port not in np.arange(self.__nPorts) + 1:
-            raise ValueError("No B field for the specified port")
+            raise EM_FieldError("No B field for the specified port", "plotB")
             
         if comp not in ['b1+', 'b1-']:
             b = self.__b_field[f_idx, port-1,:,:]
@@ -295,7 +284,7 @@ class EM_Field():
             elif comp.lower() == 'mag':
                 b = np.linalg.norm(b,axis=0)   
             else:
-                raise ValueError("comp must take one of the following values: 'mag', 'x', 'y', 'z', 'b1+', 'b1-'")
+                raise EM_FieldError("comp must take one of the following values: 'mag', 'x', 'y', 'z', 'b1+', 'b1-'", "plotB")
         else:
             b = self.compSensitivities()
             b = b[f_idx, port-1,:,:]

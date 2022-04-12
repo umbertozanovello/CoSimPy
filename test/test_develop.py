@@ -37,7 +37,8 @@ test10 = True
 testE1 = True
 testE2 = True
 testE3 = True
-
+testE4 = True
+testE5 = True
 
 
 
@@ -462,6 +463,7 @@ if testE2:
         s_matrix = S_Matrix(np.array([[[0,1],[1,0]]]), [123e6])
         with pytest.raises(S_MatrixError):
             s_matrix.exportTouchstone(filename_input, version_input, options_input)
+            
 if testE3:
     @pytest.mark.parametrize("filename_input, version_input, options_input",\
                              [("not_existent_folder/test_export", "1.1", None),\
@@ -475,3 +477,33 @@ if testE3:
         s_matrix = S_Matrix(np.array([[[0,1],[1,0]]]), [123e6])
         with pytest.raises(S_MatrixError):
             s_matrix.importTouchstone(filename_input, version_input, options_input)
+
+if testE4:
+    @pytest.mark.parametrize("Z_input, freqs_input, z0_input",\
+                             [(np.array([[50,0],[0,50]]), [123e6], [50,50]),\
+                              (np.array([[[50,0],[0,50]]]), [123e6, 125e6], [50,50]),\
+                                  (np.array([[[50,0],[0,50]]]), [123e6], [50,-50]),\
+                                      (np.array([[[50,0],[0,50]]]), [123e6], [50]),\
+                                          (np.array([[[50,0],[0,-50]]]), [123e6], [50,50])])
+    def testE4(Z_input, freqs_input, z0_input):
+        """
+        TEST E4: Check S_Matrix.fromZtoS exceptions
+        """
+        
+        with pytest.raises(S_MatrixError):
+            S_Matrix.fromZtoS(Z_input, freqs_input, z0_input)
+            
+if testE5:
+    @pytest.mark.parametrize("Y_input, freqs_input, z0_input",\
+                             [(np.array([[0.02,0],[0,0.02]]), [123e6], [0.02,0.02]),\
+                              (np.array([[[0.02,0],[0,0.02]]]), [123e6, 125e6], [0.02,0.02]),\
+                                  (np.array([[[0.02,0],[0,0.02]]]), [123e6], [0.02,-0.02]),\
+                                      (np.array([[[0.02,0],[0,0.02]]]), [123e6], [0.02]),\
+                                          (np.array([[[0.02,0],[0,-0.02]]]), [123e6], [0.02,0.02])])
+    def testE5(Y_input, freqs_input, z0_input):
+        """
+        TEST E5: Check S_Matrix.fromYtoS exceptions
+        """
+        
+        with pytest.raises(S_MatrixError):
+            S_Matrix.fromYtoS(Y_input, freqs_input, z0_input)
