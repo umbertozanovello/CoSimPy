@@ -159,7 +159,7 @@ class EM_FieldArrayError(EM_FieldError):
         It performs some test on the e_field or b_field array
         """
         if not isinstance(field, np.ndarray):
-                raise cls("e_field and b_field can only be numpy ndarray", callingMethod)
+            raise cls("e_field and b_field can only be numpy ndarray", callingMethod)
         if len(field.shape) != 4:
             raise cls("e_field and b_field can only be an Nf x Np x 3 x Nn matrices", callingMethod)
         if field.shape[2] != 3:
@@ -187,7 +187,7 @@ class EM_FieldFrequenciesError(EM_FieldError):
 
 class EM_FieldPointsError(EM_FieldError):
     """
-    Error relevant to the frequencies list
+    Error relevant to the Point on number of Points list
     """
     
     def __init__(self, message="", callingMethod=None):
@@ -202,3 +202,13 @@ class EM_FieldPointsError(EM_FieldError):
              raise cls("Spatial points can only be passed as a list or numpy ndarray with length equal to 3", callingMethod)
         if expected_prod_length is not None and np.prod(points) != expected_prod_length:
             raise cls("The number of points is not compatible with the e_field or b_field matrix last dimension", callingMethod)
+            
+
+class EM_FieldIOError(EM_FieldError):
+    """
+    Error relevant to the IO of the EM_Field instance
+    """
+    
+    def __init__(self, message="", callingMethod=None):
+        super().__init__(message, callingMethod)
+        self.__message = message

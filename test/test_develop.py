@@ -34,11 +34,13 @@ test7 = True
 test8 = True
 test9 = True
 test10 = True
+
 testE1 = True
 testE2 = True
 testE3 = True
 testE4 = True
 testE5 = True
+testE6 = True
 
 
 
@@ -176,6 +178,7 @@ if test4:
         s_matrix = S_Matrix.importTouchstone(directory+"/S_forPowBalance.s8p")
         em_field = EM_Field.importFields_s4l(directory+"/FieldForPowerBalance", [123e6], 8, imp_bfield=False)
         rf_coil = RF_Coil(s_matrix, em_field)
+
         sup = np.ones(8)
         powBal = rf_coil.powerBalance(sup,4e-3**3,[0.6]*np.prod(em_field.nPoints),False)
         
@@ -507,3 +510,21 @@ if testE5:
         
         with pytest.raises(S_MatrixError):
             S_Matrix.fromYtoS(Y_input, freqs_input, z0_input)
+
+if testE6:
+    @pytest.mark.parametrize("e_input, b_input, f_input, nPoints_input",\
+                             [(None, None, [123e6, 125e6], [2,2,2]),\
+                              (np.random.random([5,3,3,8]), None, [123e6, 125e6], [2,2,2]),\
+                                  (None, np.random.random([5,3,3,8]), [123e6, 125e6], [2,2,2]),\
+                                      (np.random.random([2,3,1,8]),np.random.random([2,3,3,8]), [123e6, 125e6], [2,2,2]),\
+                                          (np.random.random([2,3,3,8]),np.random.random([2,3,3,8]), [123e6, 125e6], [2,2,3]),\
+                                              (np.random.random([2,3,3,8]),np.random.random([2,2,3,8]), [123e6, 125e6], [2,2,2])])
+
+                                     
+    def testE6(e_input, b_input, f_input, nPoints_input):
+        """
+        TEST E6: Check EM_Field initialisation exceptions
+        """
+       
+        with pytest.raises(EM_FieldError):
+            EM_Field(f_input, nPoints_input, b_input, e_input)

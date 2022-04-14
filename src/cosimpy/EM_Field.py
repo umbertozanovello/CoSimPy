@@ -4,8 +4,8 @@ import h5py
 from scipy.io import loadmat
 import warnings
 from copy import copy
-from .Exceptions import EM_FieldError, EM_FieldArrayError, EM_FieldFrequenciesError, EM_FieldPointsError\
-    
+from .Exceptions import EM_FieldError, EM_FieldArrayError, EM_FieldFrequenciesError, EM_FieldPointsError,\
+    EM_FieldIOError
 
 def warning_format(message, category, filename, lineno, file=None, line=None):
     return '\n%s: Line %s - WARNING - %s\n' % (filename.split("/")[-1], lineno, message)
@@ -32,6 +32,9 @@ class EM_Field():
             EM_FieldPointsError.check(nPoints, "__init__", b_field.shape[-1])
             EM_FieldFrequenciesError.check(freqs, "__init__", b_field.shape[0])
         
+        if e_field is not None and b_field is not None:
+            if e_field.shape[1] != b_field.shape[1]:
+                raise EM_FieldArrayError("The second dimension of the e_field array is not consistent with the second dimension of the b_field array", "__init__")
         #TODO
         # fix the material management
         for arg in kwargs.values():
@@ -121,9 +124,10 @@ class EM_Field():
         elif isinstance(key,tuple) or isinstance(key,list) or isinstance(key,np.ndarray):
             if len(np.array(key).shape) > 1:
                 raise IndexError
-            #FIXME
-            # if (np.unique(np.array(key),return_counts=True)[1] > 1).any():
-            #     raise EM_FieldError("At least one frequency value is repeated among the indices")
+                
+            if (np.unique(np.array(key),return_counts=True)[1] > 1).any():
+                raise EM_FieldError("At least one frequency value is repeated among the indices", "__getitem__")
+            
             idx = list(map(self.__findFreqIndex, key)) # idx is a list
             
         elif isinstance(key,slice):
@@ -319,14 +323,16 @@ class EM_Field():
     def plotE(self, comp, freq, port, plane, sliceIdx, vmin=None, vmax=None):
         
         if self.__e_field is None:
-            raise ValueError("No e_field property is specified for the EM_Field instance")
+            raise EM_FieldError("No e_field property is specified for the EM_Field instance", "plotE")
             
-        f_idx = np.where(self.__f==freq)[0][0]
-        if f_idx is None:
-            raise ValueError("No E field for the specified frequency")
+        f_idx = np.where(self.__f==freq)[0]
+        if f_idx.size == 0:
+            raise EM_FieldError("No E field for the specified frequency", "plotE")
+        else:
+            f_idx = f_idx[0]
         
         if port not in np.arange(self.__nPorts) + 1:
-            raise ValueError("No E field for the specified port")
+            raise EM_FieldError("No E field for the specified port", "plotE")
             
         if comp != "mag":
             e = self.__e_field[f_idx, port-1,:,:]
@@ -338,7 +344,7 @@ class EM_Field():
             elif comp == 'z':
                 e = np.abs(e[2,:])
             else:
-                raise ValueError("comp must take one of the following values: 'mag', 'x', 'y', 'z', 'mag'")
+                raise EM_FieldError("comp must take one of the following values: 'mag', 'x', 'y', 'z', 'mag'", "plotE")
         else:
             e = np.sqrt(np.abs(self.__e_field[f_idx, port-1,0,:])**2 + np.abs(self.__e_field[f_idx, port-1,1,:])**2 + np.abs(self.__e_field[f_idx, port-1,2,:])**2)
         
@@ -400,99 +406,105 @@ class EM_Field():
         
         print("\n\n\nCompiling .xmf file...\n\n")
         
-        with open(filename+".xmf", "w") as f:
-            f.write('<?xml version="1.0" ?>\n')
-            f.write('<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>\n')
-            f.write('<Xdmf Version="2.0">\n')
-            f.write('<Domain>\n')
-            f.write('<Grid Name = "VoxelModel" GridType = "Uniform">\n')
-            f.write('<Topology TopologyType="Hexahedron" NumberOfElements="%d" BaseOffset="0">\n'%n_elem)
-            f.write('<DataStructure Format="HDF" Dimensions="%d 8" DataType="Int" Precision="8">\n'%n_elem)
-            f.write('%s.h5:/Mesh/Connections\n'%(filename))
-            f.write('</DataStructure>\n')
-            f.write('</Topology>\n')
-            f.write('<Geometry GeometryType="X_Y_Z">\n')
-            f.write('<DataItem Name="X" Dimensions="%d" NumberType="Float" Precision="4" Format="HDF">\n'%n_nodes)
-            f.write('%s.h5:/Mesh/Nodes_X\n'%(filename))
-            f.write('</DataItem>\n')
-            f.write('<DataItem Name="Y" Dimensions="%d" NumberType="Float" Precision="4" Format="HDF">\n'%n_nodes)
-            f.write('%s.h5:/Mesh/Nodes_Y\n'%(filename))
-            f.write('</DataItem>\n')
-            f.write('<DataItem Name="Z" Dimensions="%d" NumberType="Float" Precision="4" Format="HDF">\n'%n_nodes)
-            f.write('%s.h5:/Mesh/Nodes_Z\n'%(filename))
-            f.write('</DataItem>\n')
-            f.write('</Geometry>\n')
-
-            for freq in self.__f:
-                for port in range(self.__nPorts):
-                    if self.__b_field is not None:
-                        f.write('<Attribute Type="Vector" Center="Cell" Name="%dMHz-p%d-B_real">\n'%(freq/1e6,port+1))
-                        f.write('<DataItem Format="HDF" Dimensions="%d 3" DataType="Float" Precision="8">\n'%n_elem)
-                        f.write('%s.h5:/%d_MHz/Port_%d/Breal\n'%(filename, freq/1e6, port+1))
-                        f.write('</DataItem>\n')
-                        f.write('</Attribute>\n')
-                        f.write('<Attribute Type="Vector" Center="Cell" Name="%dMHz-p%d-B_imag">\n'%(freq/1e6,port+1))
-                        f.write('<DataItem Format="HDF" Dimensions="%d 3" DataType="Float" Precision="8">\n'%n_elem)
-                        f.write('%s.h5:/%d_MHz/Port_%d/Bimag\n'%(filename, freq/1e6, port+1))
-                        f.write('</DataItem>\n')
-                        f.write('</Attribute>\n')
-                    if self.__e_field is not None:    
-                        f.write('<Attribute Type="Vector" Center="Cell" Name="%dMHz-p%d-E_real">\n'%(freq/1e6,port+1))
-                        f.write('<DataItem Format="HDF" Dimensions="%d 3" DataType="Float" Precision="8">\n'%n_elem)
-                        f.write('%s.h5:/%d_MHz/Port_%d/Ereal\n'%(filename, freq/1e6, port+1))
-                        f.write('</DataItem>\n')
-                        f.write('</Attribute>\n')
-                        f.write('<Attribute Type="Vector" Center="Cell" Name="%dMHz-p%d-E_imag">\n'%(freq/1e6,port+1))
-                        f.write('<DataItem Format="HDF" Dimensions="%d 3" DataType="Float" Precision="8">\n'%n_elem)
-                        f.write('%s.h5:/%d_MHz/Port_%d/Eimag\n'%(filename, freq/1e6, port+1))
-                        f.write('</DataItem>\n')
-                        f.write('</Attribute>\n')
-            
-            for p in self.__prop:
-                f.write('<Attribute Type="Scalar" Center="Cell" Name="%s">\n'%p)
-                f.write('<DataItem Format="HDF" Dimensions="%d" DataType="Float" Precision="8">\n'%n_elem)
-                f.write('%s.h5:/Properties/%s\n'%(filename, p))
+        try:
+            with open(filename+".xmf", "w") as f:
+                f.write('<?xml version="1.0" ?>\n')
+                f.write('<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>\n')
+                f.write('<Xdmf Version="2.0">\n')
+                f.write('<Domain>\n')
+                f.write('<Grid Name = "VoxelModel" GridType = "Uniform">\n')
+                f.write('<Topology TopologyType="Hexahedron" NumberOfElements="%d" BaseOffset="0">\n'%n_elem)
+                f.write('<DataStructure Format="HDF" Dimensions="%d 8" DataType="Int" Precision="8">\n'%n_elem)
+                f.write('%s.h5:/Mesh/Connections\n'%(filename))
+                f.write('</DataStructure>\n')
+                f.write('</Topology>\n')
+                f.write('<Geometry GeometryType="X_Y_Z">\n')
+                f.write('<DataItem Name="X" Dimensions="%d" NumberType="Float" Precision="4" Format="HDF">\n'%n_nodes)
+                f.write('%s.h5:/Mesh/Nodes_X\n'%(filename))
                 f.write('</DataItem>\n')
-                f.write('</Attribute>\n')
-
-            f.write('</Grid>\n')
-            f.write('</Domain>\n')
-            f.write('</Xdmf>\n')
+                f.write('<DataItem Name="Y" Dimensions="%d" NumberType="Float" Precision="4" Format="HDF">\n'%n_nodes)
+                f.write('%s.h5:/Mesh/Nodes_Y\n'%(filename))
+                f.write('</DataItem>\n')
+                f.write('<DataItem Name="Z" Dimensions="%d" NumberType="Float" Precision="4" Format="HDF">\n'%n_nodes)
+                f.write('%s.h5:/Mesh/Nodes_Z\n'%(filename))
+                f.write('</DataItem>\n')
+                f.write('</Geometry>\n')
+    
+                for freq in self.__f:
+                    for port in range(self.__nPorts):
+                        if self.__b_field is not None:
+                            f.write('<Attribute Type="Vector" Center="Cell" Name="%dMHz-p%d-B_real">\n'%(freq/1e6,port+1))
+                            f.write('<DataItem Format="HDF" Dimensions="%d 3" DataType="Float" Precision="8">\n'%n_elem)
+                            f.write('%s.h5:/%d_MHz/Port_%d/Breal\n'%(filename, freq/1e6, port+1))
+                            f.write('</DataItem>\n')
+                            f.write('</Attribute>\n')
+                            f.write('<Attribute Type="Vector" Center="Cell" Name="%dMHz-p%d-B_imag">\n'%(freq/1e6,port+1))
+                            f.write('<DataItem Format="HDF" Dimensions="%d 3" DataType="Float" Precision="8">\n'%n_elem)
+                            f.write('%s.h5:/%d_MHz/Port_%d/Bimag\n'%(filename, freq/1e6, port+1))
+                            f.write('</DataItem>\n')
+                            f.write('</Attribute>\n')
+                        if self.__e_field is not None:    
+                            f.write('<Attribute Type="Vector" Center="Cell" Name="%dMHz-p%d-E_real">\n'%(freq/1e6,port+1))
+                            f.write('<DataItem Format="HDF" Dimensions="%d 3" DataType="Float" Precision="8">\n'%n_elem)
+                            f.write('%s.h5:/%d_MHz/Port_%d/Ereal\n'%(filename, freq/1e6, port+1))
+                            f.write('</DataItem>\n')
+                            f.write('</Attribute>\n')
+                            f.write('<Attribute Type="Vector" Center="Cell" Name="%dMHz-p%d-E_imag">\n'%(freq/1e6,port+1))
+                            f.write('<DataItem Format="HDF" Dimensions="%d 3" DataType="Float" Precision="8">\n'%n_elem)
+                            f.write('%s.h5:/%d_MHz/Port_%d/Eimag\n'%(filename, freq/1e6, port+1))
+                            f.write('</DataItem>\n')
+                            f.write('</Attribute>\n')
+                
+                for p in self.__prop:
+                    f.write('<Attribute Type="Scalar" Center="Cell" Name="%s">\n'%p)
+                    f.write('<DataItem Format="HDF" Dimensions="%d" DataType="Float" Precision="8">\n'%n_elem)
+                    f.write('%s.h5:/Properties/%s\n'%(filename, p))
+                    f.write('</DataItem>\n')
+                    f.write('</Attribute>\n')
+    
+                f.write('</Grid>\n')
+                f.write('</Domain>\n')
+                f.write('</Xdmf>\n')
+            
+            print("Compiling .h5py file...\n\n")
+            
+            with h5py.File(filename+".h5", "w") as f:
+                f["Mesh/Connections"] = connections
+                f["Mesh/Nodes_X"] = x
+                f["Mesh/Nodes_Y"] = y
+                f["Mesh/Nodes_Z"] = z
+    
+                for i,freq in enumerate(self.__f):
+                    for port in range(self.__nPorts):
+                        if self.__b_field is not None:
+                            #Substitute nan values with zero
+                            b_field = np.copy(self.__b_field)
+                            b_field[np.isnan(b_field)] = 0+0j
+                            f["%d_MHz/Port_%d/Breal"%(freq/1e6, port+1)] = np.real(b_field[i,port]).T
+                            f["%d_MHz/Port_%d/Bimag"%(freq/1e6, port+1)] = np.imag(b_field[i,port]).T
+                        if self.__e_field is not None:
+                            #Substitute nan values with zero
+                            e_field = np.copy(self.__e_field)
+                            e_field[np.isnan(e_field)] = 0+0j
+                            f["%d_MHz/Port_%d/Ereal"%(freq/1e6, port+1)] = np.real(e_field[i,port]).T
+                            f["%d_MHz/Port_%d/Eimag"%(freq/1e6, port+1)] = np.imag(e_field[i,port]).T
+                for p in self.__prop:
+                    f["Properties/%s"%p] = self.__prop[p]
         
-        print("Compiling .h5py file...\n\n")
-        
-        with h5py.File(filename+".h5", "w") as f:
-            f["Mesh/Connections"] = connections
-            f["Mesh/Nodes_X"] = x
-            f["Mesh/Nodes_Y"] = y
-            f["Mesh/Nodes_Z"] = z
-
-            for i,freq in enumerate(self.__f):
-                for port in range(self.__nPorts):
-                    if self.__b_field is not None:
-                        #Substitute nan values with zero
-                        b_field = np.copy(self.__b_field)
-                        b_field[np.isnan(b_field)] = 0+0j
-                        f["%d_MHz/Port_%d/Breal"%(freq/1e6, port+1)] = np.real(b_field[i,port]).T
-                        f["%d_MHz/Port_%d/Bimag"%(freq/1e6, port+1)] = np.imag(b_field[i,port]).T
-                    if self.__e_field is not None:
-                        #Substitute nan values with zero
-                        e_field = np.copy(self.__e_field)
-                        e_field[np.isnan(e_field)] = 0+0j
-                        f["%d_MHz/Port_%d/Ereal"%(freq/1e6, port+1)] = np.real(e_field[i,port]).T
-                        f["%d_MHz/Port_%d/Eimag"%(freq/1e6, port+1)] = np.imag(e_field[i,port]).T
-            for p in self.__prop:
-                f["Properties/%s"%p] = self.__prop[p]
-        
-       
+        except Exception as e:
+            if not isinstance(e, EM_FieldIOError): # I cast as EM_FieldIOError all other errors
+                raise EM_FieldIOError(e.args[-1], "exportXMF")
+            else:
+                raise e
+                
     def _newFieldComp(self, p_incM, phaseM):
         
         if p_incM.shape != phaseM.shape:
-            raise ValueError("p_incM and phaseM arrays are not coherent")
-        elif p_incM.shape[2] != self.__nPorts or phaseM.shape[2] != self.__nPorts:
-            raise ValueError("The number of ports has to be equal to p_incM and phase third dimension")
-        elif p_incM.shape[0] != self.__n_f or phaseM.shape[0] != self.__n_f:
-            raise ValueError("The number of frequencies of self has to be equal to p_incM and phaseM first dimension")
+            raise EM_FieldError("p_incM and phaseM arrays are not coherent", "_newFieldComp")
+        if p_incM.shape[2] != self.__nPorts or phaseM.shape[2] != self.__nPorts:
+            raise EM_FieldError("The number of ports has to be equal to p_incM and phase third dimension", "_newFieldComp")
+        if p_incM.shape[0] != self.__n_f or phaseM.shape[0] != self.__n_f:
+            raise EM_FieldError("The number of frequencies of self has to be equal to p_incM and phaseM first dimension", "_newFieldComp")
         
         norm = np.sqrt(p_incM)*np.exp(phaseM*1j)
         #Move norm axis to obtain norm.shape = [self.n_f, self.nPorts, output.nPorts]
@@ -516,7 +528,8 @@ class EM_Field():
             bfield_new = np.moveaxis(self.b_field,1,-1)
             bfield_new = bfield_new @ norm
             bfield_new = np.moveaxis(bfield_new,-1,1)
-            
+        # FIXME
+        # **self.__prop
         return EM_Field(self.__f, self.__nPoints, bfield_new, efield_new, **self.__prop)
             
     
@@ -535,15 +548,15 @@ class EM_Field():
     def importFields_cst(cls, directory, freqs, nPorts, nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, fileType = 'ascii', col_ascii_order = 0, **kwargs):
 
         if not imp_efield and not imp_bfield:
-            raise ValueError("At least one among imp_efield and imp_bfield has to be True")
-        elif nPoints is not None and len(nPoints) != 3:
-            raise  TypeError("nPoints can only be None or a list with length equal to 3")
-        elif fileType.lower() not in ["ascii", "hdf5"]:
-            raise  ValueError("fileType can only be 'ascii' or 'hdf5'")
-        elif pkORrms.lower() not in ["pk", "rms"]:
-            raise  ValueError("pkORrms can only be 'pk or 'rms'")
-        elif col_ascii_order not in [0, 1]:
-            raise  ValueError("col_ascii_order can take 0 (Re_x, Re_y, Re_z, Im_x, Im_y, Im_z) or 1 (Re_x, Im_x, Re_y, Im_y, Re_z, Im_z) values")
+            raise EM_FieldIOError("At least one among imp_efield and imp_bfield has to be True")
+        if nPoints is not None: 
+            EM_FieldPointsError.check(nPoints, "importFields_cst")
+        if fileType.lower() not in ["ascii", "hdf5"]:
+            raise  EM_FieldIOError("fileType can only be 'ascii' or 'hdf5'")
+        if pkORrms.lower() not in ["pk", "rms"]:
+            raise  EM_FieldIOError("pkORrms can only be 'pk or 'rms'")
+        if col_ascii_order not in [0, 1]:
+            raise  EM_FieldIOError("col_ascii_order can take 0 (Re_x, Re_y, Re_z, Im_x, Im_y, Im_z) or 1 (Re_x, Im_x, Re_y, Im_y, Re_z, Im_z) values")
         
         if nPoints is None and fileType == "ascii": #I try to evaluate nPoints
             
@@ -591,85 +604,92 @@ class EM_Field():
         else:
             rmsCoeff = 1 
         
-        if fileType.lower() == 'ascii':
-            for idx_f, f in enumerate(freqs):
-                print("Importing %s MHz fields\n"%f)
-    
-                for port in range(nPorts):
-                    print("\r\tImporting port%d fields"%(port+1), end='', flush=True)
-                    if col_ascii_order == 0:
-                        re_cols = (3,4,5)
-                        im_cols = (6,7,8)
-                    elif col_ascii_order == 1:
-                        re_cols = (3,5,7)
-                        im_cols = (4,6,8)
-                    if imp_efield:
-                        e_real = np.loadtxt(directory+"/efield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=re_cols)
-                        e_imag = np.loadtxt(directory+"/efield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=im_cols)
-                        assert e_real.shape[0] == n, "At least one of e_field files is not compatible with the evaluated or passed nPoints"
-                        e_field[idx_f, port, :, :] = (e_real+1j*e_imag).T
-                    if imp_bfield:
-                        b_real = np.loadtxt(directory+"/bfield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=(3,4,5))
-                        b_imag = np.loadtxt(directory+"/bfield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=(6,7,8))
-                        assert b_real.shape[0] == n, "At least one of b_field files is not compatible with the evaluated or passed nPoints"
-                        b_field[idx_f, port, :, :] = (b_real+1j*b_imag).T
-                
-                print("\n")
+        try:
+            if fileType.lower() == 'ascii':
+                for idx_f, f in enumerate(freqs):
+                    print("Importing %s MHz fields\n"%f)
         
-        elif fileType.lower() == 'hdf5':
-            for idx_f, f in enumerate(freqs):
-                print("Importing %s MHz fields\n"%f)
-    
-                for port in range(nPorts):
-                    print("\r\tImporting port%d fields"%(port+1), end='', flush=True)
-                    if imp_efield:
-                        
-                        filename = "/efield_%s_port%d.h5"%(f,port+1)
-                        with h5py.File(directory + filename, "r") as field_file:
-                            e_field_raw = np.array(field_file['E-Field'])
-                            x = np.array(field_file['Mesh line x'])
-                            y = np.array(field_file['Mesh line y'])
-                            z = np.array(field_file['Mesh line z'])
-                        
-                        assert len(x) * len(y) * len(z) == n, "At least one of e_field files is not compatible with the evaluated or passed nPoints"
-                        
-                        e_flat = e_field_raw.flatten() #Flatted array (x,y,z to be reshaped as Fortran order). Each element is a np.void type made of three (x-, y-, z-component) couple of float representing real and imaginary parts of that component
-                        e_flat = np.array(e_flat.tolist()) #Array n_points, 3 (components), 2 (real and imaginary)
-                        e_field[idx_f, port, :, :] = (e_flat[:,:,0] + 1j*e_flat[:,:,1]).T
+                    for port in range(nPorts):
+                        print("\r\tImporting port%d fields"%(port+1), end='', flush=True)
+                        if col_ascii_order == 0:
+                            re_cols = (3,4,5)
+                            im_cols = (6,7,8)
+                        elif col_ascii_order == 1:
+                            re_cols = (3,5,7)
+                            im_cols = (4,6,8)
+                        if imp_efield:
+                            e_real = np.loadtxt(directory+"/efield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=re_cols)
+                            e_imag = np.loadtxt(directory+"/efield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=im_cols)
+                            assert e_real.shape[0] == n, "At least one of e_field files is not compatible with the evaluated or passed nPoints"
+                            e_field[idx_f, port, :, :] = (e_real+1j*e_imag).T
+                        if imp_bfield:
+                            b_real = np.loadtxt(directory+"/bfield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=(3,4,5))
+                            b_imag = np.loadtxt(directory+"/bfield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=(6,7,8))
+                            assert b_real.shape[0] == n, "At least one of b_field files is not compatible with the evaluated or passed nPoints"
+                            b_field[idx_f, port, :, :] = (b_real+1j*b_imag).T
                     
-                    if imp_bfield:
-                        
-                        filename = "/bfield_%s_port%d.h5"%(f,port+1)
-                        with h5py.File(directory + filename, "r") as field_file:
-                            b_field_raw = np.array(field_file['H-Field']) #b_field is an H field and will become  field when multiplied by b_multCoeff
-                            x = np.array(field_file['Mesh line x'])
-                            y = np.array(field_file['Mesh line y'])
-                            z = np.array(field_file['Mesh line z'])
-                        
-                        assert len(x) * len(y) * len(z) == n, "At least one of e_field files is not compatible with the evaluated or passed nPoints"
-                        
-                        b_flat = b_field_raw.flatten() #Flatted array (x,y,z to be reshaped as Fortran order). Each element is a np.void type made of three (x-, y-, z-component) couple of float representing real and imaginary parts of that component
-                        b_flat = np.array(b_flat.tolist()) #Array n_points, 3 (components), 2 (real and imaginary)
-                        b_field[idx_f, port, :, :] = (b_flat[:,:,0] + 1j*b_flat[:,:,1]).T
-                    
-                print("\n")
-        if imp_efield:
-            e_field = np.sqrt(1/Pinc_ref) * rmsCoeff * e_field #cst exported field values are peak values
-        if imp_bfield:
-            b_field = b_multCoeff * np.sqrt(1/Pinc_ref) * rmsCoeff * b_field #cst exported field values are peak values
+                    print("\n")
+            
+            elif fileType.lower() == 'hdf5':
+                for idx_f, f in enumerate(freqs):
+                    print("Importing %s MHz fields\n"%f)
         
-        freqs = 1e6*np.array(freqs).astype(np.float)
+                    for port in range(nPorts):
+                        print("\r\tImporting port%d fields"%(port+1), end='', flush=True)
+                        if imp_efield:
+                            
+                            filename = "/efield_%s_port%d.h5"%(f,port+1)
+                            with h5py.File(directory + filename, "r") as field_file:
+                                e_field_raw = np.array(field_file['E-Field'])
+                                x = np.array(field_file['Mesh line x'])
+                                y = np.array(field_file['Mesh line y'])
+                                z = np.array(field_file['Mesh line z'])
+                            
+                            assert len(x) * len(y) * len(z) == n, "At least one of e_field files is not compatible with the evaluated or passed nPoints"
+                            
+                            e_flat = e_field_raw.flatten() #Flatted array (x,y,z to be reshaped as Fortran order). Each element is a np.void type made of three (x-, y-, z-component) couple of float representing real and imaginary parts of that component
+                            e_flat = np.array(e_flat.tolist()) #Array n_points, 3 (components), 2 (real and imaginary)
+                            e_field[idx_f, port, :, :] = (e_flat[:,:,0] + 1j*e_flat[:,:,1]).T
+                        
+                        if imp_bfield:
+                            
+                            filename = "/bfield_%s_port%d.h5"%(f,port+1)
+                            with h5py.File(directory + filename, "r") as field_file:
+                                b_field_raw = np.array(field_file['H-Field']) #b_field is an H field and will become  field when multiplied by b_multCoeff
+                                x = np.array(field_file['Mesh line x'])
+                                y = np.array(field_file['Mesh line y'])
+                                z = np.array(field_file['Mesh line z'])
+                            
+                            assert len(x) * len(y) * len(z) == n, "At least one of e_field files is not compatible with the evaluated or passed nPoints"
+                            
+                            b_flat = b_field_raw.flatten() #Flatted array (x,y,z to be reshaped as Fortran order). Each element is a np.void type made of three (x-, y-, z-component) couple of float representing real and imaginary parts of that component
+                            b_flat = np.array(b_flat.tolist()) #Array n_points, 3 (components), 2 (real and imaginary)
+                            b_field[idx_f, port, :, :] = (b_flat[:,:,0] + 1j*b_flat[:,:,1]).T
+                        
+                    print("\n")
+            if imp_efield:
+                e_field = np.sqrt(1/Pinc_ref) * rmsCoeff * e_field #cst exported field values are peak values
+            if imp_bfield:
+                b_field = b_multCoeff * np.sqrt(1/Pinc_ref) * rmsCoeff * b_field #cst exported field values are peak values
+            
+            freqs = 1e6*np.array(freqs).astype(np.float)
+            
+            return cls(freqs, nPoints, b_field, e_field, **kwargs)
         
-        return cls(freqs, nPoints, b_field, e_field, **kwargs)
+        except Exception as e:
+            if not isinstance(e, EM_FieldIOError): # I cast as EM_FieldIOError all other errors
+                raise EM_FieldIOError(e.args[-1], "importFields_cst")
+            else:
+                raise e
 
 
     @classmethod
     def importFields_s4l(cls, directory, freqs, nPorts, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, **kwargs):
         
         if not imp_efield and not imp_bfield:
-            raise ValueError("At least one among imp_efield and imp_bfield has to be True")
-        elif pkORrms.lower() not in ["pk", "rms"]:
-            raise  ValueError("pkORrms can only be 'pk or 'rms'")
+            raise EM_FieldIOError("At least one among imp_efield and imp_bfield has to be True", "importFields_s4l")
+        if pkORrms.lower() not in ["pk", "rms"]:
+            raise  EM_FieldIOError("pkORrms can only be 'pk or 'rms'", "importFields_s4l")
         
         if pkORrms.lower() == "pk":
             rmsCoeff = 1/np.sqrt(2)
@@ -682,48 +702,55 @@ class EM_Field():
         if not imp_bfield:
             b_field = None
         
-        for port in range(nPorts):
-            
-            print("\rImporting port%d fields"%(port+1), end='', flush=True)
-            
-            if imp_efield:    
+        try:
+            for port in range(nPorts):
                 
-                data = loadmat(directory+"/efield_port%d.mat"%(port+1))
+                print("\rImporting port%d fields"%(port+1), end='', flush=True)
                 
-                if port == 0:
-                    if data["Axis0"].shape[-1] * data["Axis1"].shape[-1] * data["Axis2"].shape[-1] == data["Snapshot0"].shape[0]:
-                        n = data["Axis0"].shape[-1] * data["Axis1"].shape[-1] * data["Axis2"].shape[-1]
-                        nPoints = [data["Axis0"].shape[-1], data["Axis1"].shape[-1], data["Axis2"].shape[-1]]
-                    else:
-                        n = (data["Axis0"].shape[-1]-1) * (data["Axis1"].shape[-1]-1) * (data["Axis2"].shape[-1]-1)
-                        nPoints = [data["Axis0"].shape[-1]-1, data["Axis1"].shape[-1]-1, data["Axis2"].shape[-1]-1]
-
-                    e_field = np.empty((len(freqs),nPorts,3,n), dtype="complex")
-                
-                for f in range(len(freqs)):
-                    e_field[f,port,:,:] = np.moveaxis(data["Snapshot%d"%f],-1,0)
+                if imp_efield:    
                     
-            if imp_bfield:    
-                
-                data = loadmat(directory+"/bfield_port%d.mat"%(port+1))
-                
-                if port == 0:
-                    if data["Axis0"].shape[-1] * data["Axis1"].shape[-1] * data["Axis2"].shape[-1] == data["Snapshot0"].shape[0]:
-                        n = data["Axis0"].shape[-1] * data["Axis1"].shape[-1] * data["Axis2"].shape[-1]
-                        nPoints = [data["Axis0"].shape[-1], data["Axis1"].shape[-1], data["Axis2"].shape[-1]]
-                    else:
-                        n = (data["Axis0"].shape[-1]-1) * (data["Axis1"].shape[-1]-1) * (data["Axis2"].shape[-1]-1)
-                        nPoints = [data["Axis0"].shape[-1]-1, data["Axis1"].shape[-1]-1, data["Axis2"].shape[-1]-1]
-
-                    b_field = np.empty((len(freqs),nPorts,3,n), dtype="complex")
-                
-                for f in range(len(freqs)):
-                    b_field[f,port,:,:] = np.moveaxis(data["Snapshot%d"%f],-1,0)
-                
-        if imp_efield:
-            e_field = np.sqrt(1/Pinc_ref) * rmsCoeff * e_field
-        if imp_bfield:
-            b_field = b_multCoeff * np.sqrt(1/Pinc_ref) * rmsCoeff * b_field
+                    data = loadmat(directory+"/efield_port%d.mat"%(port+1))
+                    
+                    if port == 0:
+                        if data["Axis0"].shape[-1] * data["Axis1"].shape[-1] * data["Axis2"].shape[-1] == data["Snapshot0"].shape[0]:
+                            n = data["Axis0"].shape[-1] * data["Axis1"].shape[-1] * data["Axis2"].shape[-1]
+                            nPoints = [data["Axis0"].shape[-1], data["Axis1"].shape[-1], data["Axis2"].shape[-1]]
+                        else:
+                            n = (data["Axis0"].shape[-1]-1) * (data["Axis1"].shape[-1]-1) * (data["Axis2"].shape[-1]-1)
+                            nPoints = [data["Axis0"].shape[-1]-1, data["Axis1"].shape[-1]-1, data["Axis2"].shape[-1]-1]
+    
+                        e_field = np.empty((len(freqs),nPorts,3,n), dtype="complex")
+                    
+                    for f in range(len(freqs)):
+                        e_field[f,port,:,:] = np.moveaxis(data["Snapshot%d"%f],-1,0)
+                        
+                if imp_bfield:    
+                    
+                    data = loadmat(directory+"/bfield_port%d.mat"%(port+1))
+                    
+                    if port == 0:
+                        if data["Axis0"].shape[-1] * data["Axis1"].shape[-1] * data["Axis2"].shape[-1] == data["Snapshot0"].shape[0]:
+                            n = data["Axis0"].shape[-1] * data["Axis1"].shape[-1] * data["Axis2"].shape[-1]
+                            nPoints = [data["Axis0"].shape[-1], data["Axis1"].shape[-1], data["Axis2"].shape[-1]]
+                        else:
+                            n = (data["Axis0"].shape[-1]-1) * (data["Axis1"].shape[-1]-1) * (data["Axis2"].shape[-1]-1)
+                            nPoints = [data["Axis0"].shape[-1]-1, data["Axis1"].shape[-1]-1, data["Axis2"].shape[-1]-1]
+    
+                        b_field = np.empty((len(freqs),nPorts,3,n), dtype="complex")
+                    
+                    for f in range(len(freqs)):
+                        b_field[f,port,:,:] = np.moveaxis(data["Snapshot%d"%f],-1,0)
+                    
+            if imp_efield:
+                e_field = np.sqrt(1/Pinc_ref) * rmsCoeff * e_field
+            if imp_bfield:
+                b_field = b_multCoeff * np.sqrt(1/Pinc_ref) * rmsCoeff * b_field
+            
+            
+            return cls(freqs, nPoints, b_field, e_field, **kwargs)
         
-        
-        return cls(freqs, nPoints, b_field, e_field, **kwargs)
+        except Exception as e:
+            if not isinstance(e, EM_FieldIOError): # I cast as EM_FieldIOError all other errors
+                raise EM_FieldIOError(e.args[-1], "importFields_s4l")
+            else:
+                raise e
