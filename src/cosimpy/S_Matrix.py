@@ -103,6 +103,9 @@ class S_Matrix():
             else:
                 idx1 = self.__findFreqIndex(key.stop)
             idx = slice(idx0,idx1) # idx is a slice
+        
+        else:
+            raise S_MatrixError("Unrecognised index type", "__getitem__")
 
         ret_S_Matrix.__S = ret_S_Matrix.__S[idx]
         ret_S_Matrix.__f = ret_S_Matrix.__f[idx]

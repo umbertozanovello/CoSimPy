@@ -93,13 +93,13 @@ class S_MatrixPortImpedancesError(S_MatrixError):
         
     @classmethod
     def check(cls, z0, callingMethod=None, expected_length=None):
-        if not isinstance(z0, np.ndarray) and not isinstance(z0, list) and not isinstance(z0, int) and not isinstance(z0, float):
+        if not isinstance(z0, np.ndarray) and not isinstance(z0, list) and not isinstance(np.real(z0), int) and not isinstance(np.real(z0), float):
             raise cls("z0 can only be a list or numpy ndarray or a scalar in case all ports share the same impedance", callingMethod)
         if (isinstance(z0, np.ndarray) or isinstance(z0, list)) and len(z0) != expected_length:
             raise cls("The port impedances list has an unexpected length", callingMethod)
         if (np.array(np.real(z0)) <= 0).any():
             raise cls("The real part of all the port impedances has to be higher than zero", callingMethod)
-        if (np.array(np.real(z0)) != np.array(z0)).any():
+        if not np.array_equal(np.array(np.real(z0)), np.array(z0)):
             warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
             
             
@@ -204,6 +204,50 @@ class EM_FieldPointsError(EM_FieldError):
             raise cls("The number of points is not compatible with the e_field or b_field matrix last dimension", callingMethod)
             
 
+class EM_FieldPropertiesError(EM_FieldError):
+    """
+    Error relevant to the properties dictionary
+    """
+    
+    def __init__(self, message="", callingMethod=None):
+        super().__init__(message, callingMethod)
+        self.__message = message
+        
+    @classmethod
+    def check(cls, props, callingMethod=None, expectedPoints=None):
+        if not isinstance(props, dict):
+            raise cls("props can only be a dictionary", callingMethod)
+        
+        if props != {}:
+            
+            # CHECK IDXS KEY
+            if "idxs" not in props.keys():
+                if callingMethod == "__init__":
+                    raise cls("An 'idxs' key is expected in the properties dictionary. Add idx", callingMethod)
+                else:
+                    raise cls("An 'idxs' key is expected in the properties dictionary. Add the idxs array before any other property", callingMethod)
+            if not isinstance(props["idxs"], list) and not isinstance(props["idxs"], np.ndarray):
+                raise cls("props['idxs'] can only be a 1D list or numpy ndarray with length equal to the total number of points over which the EM field is defined", callingMethod)
+            if len(np.array(props["idxs"]).shape) > 1:
+                raise cls("props['idxs'] can only be a 1D list or numpy ndarray with length equal to the total number of points over which the EM field is defined", callingMethod)
+            if expectedPoints is not None and (len(props["idxs"]) != expectedPoints):
+                raise cls("props['idxs'] can only be a 1D list or numpy ndarray with length equal to the total number of points over which the EM field is defined", callingMethod)
+            if not np.array_equal(np.unique(props["idxs"]), np.arange(0, np.max(props["idxs"])+1, 1)):
+                raise cls("props['idxs'] has to contain all integer numbers between 0 and the maximum material index", callingMethod)
+            
+            # CHECK OTHER KEYS
+            for key in props:
+                if key != "idxs":
+                    if not isinstance(props[key],list) and not isinstance(props[key],np.ndarray):
+                        raise cls("All properties have be a 1D list or numpy ndarray with length equal to the maximum material index plus one", callingMethod)
+                    if len(np.array(props[key]).shape) > 1:
+                        raise cls("All properties have be a 1D list or numpy ndarray with length equal to the maximum material index plus one", callingMethod)
+                    if len(props[key]) != np.max(props["idxs"])+1:
+                        raise cls("All properties have be a 1D list or numpy ndarray with length equal to the maximum material index plus one", callingMethod)
+                    if not np.array_equal(np.array(props[key]), np.array(props[key]).real):
+                        raise cls("All properties have to be 1D lists or numpy ndarrays made of real numbers", callingMethod)
+
+        
 class EM_FieldIOError(EM_FieldError):
     """
     Error relevant to the IO of the EM_Field instance

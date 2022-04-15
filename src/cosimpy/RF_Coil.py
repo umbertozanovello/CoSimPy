@@ -146,7 +146,7 @@ class RF_Coil():
         return self.singlePortConnRFcoil(s_matrices, comp_Pinc)
     
     
-    def powerBalance(self, p_inc, voxVols=None, elCond=None, printReport=False):
+    def powerBalance(self, p_inc, voxVols=None, elCond_key=None, printReport=False):
         
         powBal = {}
         tot_p_inc = np.sum(np.abs(p_inc))
@@ -154,7 +154,7 @@ class RF_Coil():
         
         pows = self.s_matrix.powerBalance(p_inc)
 
-        if self.em_field is None or self.em_field.e_field is None:
+        if self.em_field is None or self.em_field.e_field is None or elCond_key is None or voxVols is None:
             
             frequencies = self.s_matrix.frequencies
             
@@ -170,7 +170,7 @@ class RF_Coil():
                 
             idxs = np.where(self.s_matrix.frequencies[:,None]==self.em_field.frequencies)[0]
             
-            depPow = self.em_field.compDepPow(voxVols, elCond, p_inc)
+            depPow = self.em_field.compDepPow(voxVols, elCond_key, p_inc)
             
             if len(pows) == 1: # No available data for external circuitries losses
                 powBal["P_refl"] = tot_p_inc - pows[0][idxs]
@@ -230,7 +230,7 @@ class RF_Coil():
         em_field frequencies --> float (4 bytes)
         em_field e_field --> float (4 bytes)
         em_field b_field --> float (4 bytes)
-        em_field properties --> float (4 bytes)
+        em_field properties --> idxs as int (4 bytes) and the others as float (4 bytes)
         """
         
         def flattenCompArray(compArray):
@@ -331,12 +331,15 @@ class RF_Coil():
                     for b in b_field_flat:
                         f.write(struct.pack('<f', b))
                 # properties
-                for prop_name in em_field_prop_names:
-                    #Saving status
-                    print("\rSaving: EM_Field.properties...", end='', flush=True)
-                    
-                    for pr in self.em_field.properties[prop_name]:
-                        f.write(struct.pack('<f', pr))
+                #Saving status
+                print("\rSaving: EM_Field.properties...", end='', flush=True)
+                if em_field_prop_names: # At least one key is present
+                    for idx in self.em_field.properties['idxs']:
+                        f.write(struct.pack('<i', idx))
+                    for prop_name in em_field_prop_names:
+                        if prop_name != "idxs":
+                            for pr in self.em_field.properties[prop_name]:
+                                f.write(struct.pack('<f', pr))
             
             print("\nRF coil succesfully saved as %s\n" %filename)
 
@@ -430,14 +433,20 @@ class RF_Coil():
                     #Loading status
                     print("\rLoading: EM_Field.properties...", end='', flush=True)
                     
+                    idxs_property = np.zeros([n_points], dtype=np.int)
+                    for i in range(n_points):
+                            idxs_property[i] = struct.unpack('<i', f.read(4))[0]
+                    em_properties["idxs"] = idxs_property
+                    
                     for prop_name in prop_names:
-                        em_property = np.zeros([n_points], dtype=np.float)
-                        for i in range(n_points):
-                            em_property[i] = struct.unpack('<f', f.read(4))[0]
-                        em_properties[prop_name] = em_property
+                        if prop_name != "idxs":
+                            em_property = np.zeros([np.max(idxs_property)+1], dtype=np.float)
+                            for i in range(np.max(idxs_property)+1):
+                                em_property[i] = struct.unpack('<f', f.read(4))[0]
+                            em_properties[prop_name] = em_property
                 
                 #EM_Field instance
-                em_field = EM_Field(em_frequencies, em_points, b_field, e_field, **em_properties)
+                em_field = EM_Field(em_frequencies, em_points, b_field, e_field, em_properties)
                     
             #S_Matrix instance
             s_matrix_in = None

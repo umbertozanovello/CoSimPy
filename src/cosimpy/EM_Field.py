@@ -5,7 +5,7 @@ from scipy.io import loadmat
 import warnings
 from copy import copy
 from .Exceptions import EM_FieldError, EM_FieldArrayError, EM_FieldFrequenciesError, EM_FieldPointsError,\
-    EM_FieldIOError
+    EM_FieldIOError, EM_FieldPropertiesError
 
 def warning_format(message, category, filename, lineno, file=None, line=None):
     return '\n%s: Line %s - WARNING - %s\n' % (filename.split("/")[-1], lineno, message)
@@ -14,7 +14,7 @@ warnings.formatwarning = warning_format
 
 class EM_Field():
     
-    def __init__(self, freqs, nPoints, b_field=None, e_field=None, **kwargs):
+    def __init__(self, freqs, nPoints, b_field=None, e_field=None, props={}):
         
         if e_field is None and b_field is None:
             raise EM_FieldArrayError("At least one among e_field and b_field arguments has to be different from None", "__init__")
@@ -35,17 +35,6 @@ class EM_Field():
         if e_field is not None and b_field is not None:
             if e_field.shape[1] != b_field.shape[1]:
                 raise EM_FieldArrayError("The second dimension of the e_field array is not consistent with the second dimension of the b_field array", "__init__")
-        #TODO
-        # fix the material management
-        for arg in kwargs.values():
-            if not isinstance(arg, list) and not isinstance(arg, np.ndarray):
-                raise ValueError("All the additional properties have to be list or numpy ndarray of float or int")
-            elif np.array(arg).dtype != np.dtype(np.float) and np.array(arg).dtype != np.dtype(np.int):
-                raise ValueError("All the additional properties have to be list or numpy ndarray of float or int")
-            elif np.array(arg).size != np.prod(nPoints):
-                raise ValueError("At least one of the additional properties has a length different from nPoints[0]*nPoints[1]*nPoints[2]")
-            elif len(np.array(arg).shape) != 1:
-                raise ValueError("All the additional properties have to be 1D-list or numpy ndarray")
 
         if e_field is not None:  
             self.__e_field = np.array(e_field,dtype = "complex")
@@ -62,8 +51,14 @@ class EM_Field():
         self.__f = np.array(freqs)
         self.__nPoints = np.array(nPoints)
         self.__n_f = len(freqs)
-        self.__prop = kwargs
-    
+        
+        EM_FieldPropertiesError.check(props, "__init__", np.prod(nPoints))
+        self.__props = props
+        for prop in self.__props:
+            self.__props[prop] = np.array(self.__props[prop])
+            if prop == "idxs": # idxs must be integer type array for proper indexing in other methods
+                self.__props[prop] = self.__props[prop].astype(int)
+            
     
     @property
     def e_field(self):
@@ -97,7 +92,7 @@ class EM_Field():
     
     @property
     def properties(self):
-        return self.__prop
+        return self.__props
     
     
     def __repr__(self):
@@ -107,15 +102,14 @@ class EM_Field():
                 string += "E field not defined\n\n"
         elif self.b_field is None:
             string += "B field not defined\n\n"
-        if self.__prop != {}:
-            for key in self.__prop:
-                string += "'%s' additional property defined\n" %key
+        if self.__props != {}:
+            for key in self.__props:
+                if key != "idxs":
+                    string += "'%s' additional property defined\n" %key
         return string
     
     
     def __getitem__(self, key):
-        # FIXME
-        # Set proper extraction for properties
         ret_em_field = copy(self)
         
         if isinstance(key,int) or isinstance(key,float):
@@ -151,6 +145,30 @@ class EM_Field():
         return ret_em_field
     
     
+    def getProperty(self, prop_key):
+        
+        if not isinstance(prop_key, str):
+            raise EM_FieldError("prop_key has to be a string relevant to a key in the properties dictionary", "getProperty")
+        if prop_key not in self.__props.keys():
+            raise EM_FieldPropertiesError("%s has not been found among the keys of the properties dictionary", "getProperty")
+        
+        return self.__props[prop_key][self.__props['idxs']]
+    
+    
+    def addProperty(self, prop_key, prop_value):
+        
+        new_props = copy(self.__props)
+        new_props[prop_key] = prop_value
+        
+        EM_FieldPropertiesError.check(new_props, "addProperty")
+        
+        new_props[prop_key] = np.array(new_props[prop_key])
+        if prop_key == "idxs": # idxs must be integer type array for proper indexing in other methods
+                new_props[prop_key] = new_props[prop_key].astype(int)
+                
+        self.__props = new_props
+        
+        
     def compSensitivities(self):
         
         if self.__b_field is None:
@@ -168,20 +186,14 @@ class EM_Field():
         return sens
     
     
-    def compPowDens(self, elCond=None, p_inc=None):
+    def compPowDens(self, elCond_key, p_inc=None):
         
-        #FIXME
-        if elCond is None and not "elCond" in self.__prop.keys():
-            raise ValueError("No 'elCond' key is found in self.properties. Please, provide the electrical conductivity as argument of the method")
-        elif elCond is not None:
-            if not isinstance(elCond, list) and not isinstance(elCond, np.ndarray):
-                raise ValueError("elCond has to be a list or a numpy ndarray of float or int")
-            elif np.array(elCond).dtype != np.dtype(np.float) and np.array(elCond).dtype != np.dtype(np.int):
-                raise ValueError("elCond has to be a list or an numpy ndarray of float or int")
-            elif np.array(elCond).size != np.prod(self.__nPoints):
-                raise ValueError("elCond has a length different from nPoints[0]*nPoints[1]*nPoints[2]")
-        else:
-            elCond = self.__prop["elCond"]
+        if not isinstance(elCond_key, str):
+            raise EM_FieldError("elCond_key has to be a string relevant to the key of the electrical conductivity in the properties dictionary", "compPowDens")
+        if elCond_key not in self.__props.keys():
+            raise EM_FieldPropertiesError("%s has not been found among the keys of the properties dictionary", "compPowDens")
+        
+        elCond = self.getProperty(elCond_key)
             
         if self.__e_field is None:
             raise EM_FieldError("No e field property is specified for the EM_Field instance. Power density cannot be computed", "compPowDens")
@@ -205,20 +217,20 @@ class EM_Field():
         return powDens
     
     
-    def compDepPow(self, voxVols, elCond=None, p_inc=None):
+    def compDepPow(self, voxVols, elCond_key, p_inc=None):
         
 
         if not isinstance(voxVols, int) and not isinstance(voxVols, float):
             raise EM_FieldError("voxVols has to be int or float", "compDepPow")
             
-        powDens = self.compPowDens(elCond, p_inc)
+        powDens = self.compPowDens(elCond_key, p_inc)
             
         depPow = np.nansum(powDens*voxVols, axis=-1)
         
         return depPow
     
     
-    def compQMatrix(self, point, freq, z0_ports=50, elCond=None):
+    def compQMatrix(self, point, freq, z0_ports=50, elCond_key=None):
         
         if self.__e_field is None:
             raise EM_FieldError("No e field property is specified for the EM_Field instance. Power density cannot be computed", "compQMatrix")
@@ -235,13 +247,13 @@ class EM_Field():
         else:
             f_idx = f_idx[0]
             
-        #FIXME
-        if elCond is not None and not isinstance(elCond, np.float) and not isinstance(elCond, np.int):
-            raise TypeError("elCond must be None or a single scalar number representative of the electrical conductivity in point")
-        elif elCond is None and "elCond" in self.__prop.keys():
-            elCond = self.__prop["elCond"][point_index]
-        elif elCond is None: #No electrical conductivity is passed as argument and a relevant property is not present
+
+        if elCond_key is not None and not isinstance(elCond_key, str):
+            raise EM_FieldError("elCond_key has to be None or a string relevant to the key of the electrical conductivity in the properties dictionary", "compQMatrix")
+        if elCond_key is None: #No electrical conductivity is passed as argument and a relevant property is not present
             elCond = 1
+        else:
+            elCond = self.getProperty(elCond_key)[point_index]
         
         
         if not isinstance(z0_ports, np.ndarray) and not isinstance(z0_ports, list) and not isinstance(z0_ports, np.int) and not isinstance(z0_ports, np.float):
@@ -455,12 +467,13 @@ class EM_Field():
                             f.write('</DataItem>\n')
                             f.write('</Attribute>\n')
                 
-                for p in self.__prop:
-                    f.write('<Attribute Type="Scalar" Center="Cell" Name="%s">\n'%p)
-                    f.write('<DataItem Format="HDF" Dimensions="%d" DataType="Float" Precision="8">\n'%n_elem)
-                    f.write('%s.h5:/Properties/%s\n'%(filename, p))
-                    f.write('</DataItem>\n')
-                    f.write('</Attribute>\n')
+                for p in self.__props:
+                    if p != "idxs":
+                        f.write('<Attribute Type="Scalar" Center="Cell" Name="%s">\n'%p)
+                        f.write('<DataItem Format="HDF" Dimensions="%d" DataType="Float" Precision="8">\n'%n_elem)
+                        f.write('%s.h5:/Properties/%s\n'%(filename, p))
+                        f.write('</DataItem>\n')
+                        f.write('</Attribute>\n')
     
                 f.write('</Grid>\n')
                 f.write('</Domain>\n')
@@ -488,8 +501,9 @@ class EM_Field():
                             e_field[np.isnan(e_field)] = 0+0j
                             f["%d_MHz/Port_%d/Ereal"%(freq/1e6, port+1)] = np.real(e_field[i,port]).T
                             f["%d_MHz/Port_%d/Eimag"%(freq/1e6, port+1)] = np.imag(e_field[i,port]).T
-                for p in self.__prop:
-                    f["Properties/%s"%p] = self.__prop[p]
+                for p in self.__props:
+                    if p != "idxs":
+                        f["Properties/%s"%p] = self.getProperty(p)
         
         except Exception as e:
             if not isinstance(e, EM_FieldIOError): # I cast as EM_FieldIOError all other errors
@@ -528,9 +542,8 @@ class EM_Field():
             bfield_new = np.moveaxis(self.b_field,1,-1)
             bfield_new = bfield_new @ norm
             bfield_new = np.moveaxis(bfield_new,-1,1)
-        # FIXME
-        # **self.__prop
-        return EM_Field(self.__f, self.__nPoints, bfield_new, efield_new, **self.__prop)
+
+        return EM_Field(self.__f, self.__nPoints, bfield_new, efield_new, self.__props)
             
     
     def __findFreqIndex(self, freq):
@@ -545,12 +558,14 @@ class EM_Field():
     
     
     @classmethod
-    def importFields_cst(cls, directory, freqs, nPorts, nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, fileType = 'ascii', col_ascii_order = 0, **kwargs):
+    def importFields_cst(cls, directory, freqs, nPorts, nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, fileType = 'ascii', col_ascii_order = 0, props={}):
 
         if not imp_efield and not imp_bfield:
             raise EM_FieldIOError("At least one among imp_efield and imp_bfield has to be True")
         if nPoints is not None: 
             EM_FieldPointsError.check(nPoints, "importFields_cst")
+        if not isinstance(nPorts, int) or nPorts < 1:
+            raise  EM_FieldIOError("nPorts has to be an integer higher than zero")
         if fileType.lower() not in ["ascii", "hdf5"]:
             raise  EM_FieldIOError("fileType can only be 'ascii' or 'hdf5'")
         if pkORrms.lower() not in ["pk", "rms"]:
@@ -558,53 +573,56 @@ class EM_Field():
         if col_ascii_order not in [0, 1]:
             raise  EM_FieldIOError("col_ascii_order can take 0 (Re_x, Re_y, Re_z, Im_x, Im_y, Im_z) or 1 (Re_x, Im_x, Re_y, Im_y, Re_z, Im_z) values")
         
-        if nPoints is None and fileType == "ascii": #I try to evaluate nPoints
-            
-            if imp_efield:
-                x,y,z = np.loadtxt(directory+"/efield_%s_port1.txt"%(freqs[0]), skiprows=2, unpack=True, usecols=(0,1,2))
-            else:
-                x,y,z = np.loadtxt(directory+"/bfield_%s_port1.txt"%(freqs[0]), skiprows=2, unpack=True, usecols=(0,1,2))
-            
-            orig_len = len(x) #Total number of points
-            
-            x = np.unique(x)
-            y = np.unique(y)
-            z = np.unique(z)
-            
-            nPoints = [len(x), len(y), len(z)]
-            
-            assert np.prod(nPoints) == orig_len, "nPoints evaluation failed. Please specify its value in the method argument"
-
-        elif nPoints is None and fileType == "hdf5":
-            if imp_efield:
-                filename = "/efield_%s_port1.h5"%(freqs[0])
-            else:
-                filename = "/bfield_%s_port1.h5"%(freqs[0])
-                
-            with h5py.File(directory+filename, "r") as f:
-                x = np.array(f['Mesh line x'])
-                y = np.array(f['Mesh line y'])
-                z = np.array(f['Mesh line z'])
-            
-            nPoints = [len(x), len(y), len(z)]
-            
-        n = np.prod(nPoints)
-        
-        if imp_efield:
-            e_field = np.empty((len(freqs),nPorts,3,n), dtype="complex")
-        else:
-            e_field = None
-        if imp_bfield:
-            b_field = np.empty((len(freqs),nPorts,3,n), dtype="complex")
-        else:
-            b_field = None
-        
-        if pkORrms.lower() == "pk":
-            rmsCoeff = 1/np.sqrt(2)
-        else:
-            rmsCoeff = 1 
-        
         try:
+            
+            if nPoints is None and fileType == "ascii": #I try to evaluate nPoints
+                
+                if imp_efield:
+                    x,y,z = np.loadtxt(directory+"/efield_%s_port1.txt"%(freqs[0]), skiprows=2, unpack=True, usecols=(0,1,2))
+                else:
+                    x,y,z = np.loadtxt(directory+"/bfield_%s_port1.txt"%(freqs[0]), skiprows=2, unpack=True, usecols=(0,1,2))
+                
+                orig_len = len(x) #Total number of points
+                
+                x = np.unique(x)
+                y = np.unique(y)
+                z = np.unique(z)
+                
+                nPoints = [len(x), len(y), len(z)]
+                
+                if np.prod(nPoints) != orig_len:
+                    raise EM_FieldIOError("nPoints evaluation failed. Please specify its value in the method argument", "importFields_cst")
+    
+            elif nPoints is None and fileType == "hdf5":
+                if imp_efield:
+                    filename = "/efield_%s_port1.h5"%(freqs[0])
+                else:
+                    filename = "/bfield_%s_port1.h5"%(freqs[0])
+                    
+                with h5py.File(directory+filename, "r") as f:
+                    x = np.array(f['Mesh line x'])
+                    y = np.array(f['Mesh line y'])
+                    z = np.array(f['Mesh line z'])
+                
+                nPoints = [len(x), len(y), len(z)]
+                
+            n = np.prod(nPoints)
+            
+            if imp_efield:
+                e_field = np.empty((len(freqs),nPorts,3,n), dtype="complex")
+            else:
+                e_field = None
+            if imp_bfield:
+                b_field = np.empty((len(freqs),nPorts,3,n), dtype="complex")
+            else:
+                b_field = None
+            
+            if pkORrms.lower() == "pk":
+                rmsCoeff = 1/np.sqrt(2)
+            else:
+                rmsCoeff = 1 
+        
+        
             if fileType.lower() == 'ascii':
                 for idx_f, f in enumerate(freqs):
                     print("Importing %s MHz fields\n"%f)
@@ -620,12 +638,14 @@ class EM_Field():
                         if imp_efield:
                             e_real = np.loadtxt(directory+"/efield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=re_cols)
                             e_imag = np.loadtxt(directory+"/efield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=im_cols)
-                            assert e_real.shape[0] == n, "At least one of e_field files is not compatible with the evaluated or passed nPoints"
+                            if e_real.shape[0] != n:
+                                raise EM_FieldIOError("At least one of e_field files is not compatible with the evaluated or passed nPoints", "importFields_cst")
                             e_field[idx_f, port, :, :] = (e_real+1j*e_imag).T
                         if imp_bfield:
                             b_real = np.loadtxt(directory+"/bfield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=(3,4,5))
                             b_imag = np.loadtxt(directory+"/bfield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=(6,7,8))
-                            assert b_real.shape[0] == n, "At least one of b_field files is not compatible with the evaluated or passed nPoints"
+                            if b_real.shape[0] != n:
+                                raise EM_FieldIOError("At least one of b_field files is not compatible with the evaluated or passed nPoints", "importFields_cst")
                             b_field[idx_f, port, :, :] = (b_real+1j*b_imag).T
                     
                     print("\n")
@@ -645,7 +665,8 @@ class EM_Field():
                                 y = np.array(field_file['Mesh line y'])
                                 z = np.array(field_file['Mesh line z'])
                             
-                            assert len(x) * len(y) * len(z) == n, "At least one of e_field files is not compatible with the evaluated or passed nPoints"
+                            if (len(x) * len(y) * len(z)) != n:
+                                raise EM_FieldIOError("At least one of e_field files is not compatible with the evaluated or passed nPoints", "importFields_cst")
                             
                             e_flat = e_field_raw.flatten() #Flatted array (x,y,z to be reshaped as Fortran order). Each element is a np.void type made of three (x-, y-, z-component) couple of float representing real and imaginary parts of that component
                             e_flat = np.array(e_flat.tolist()) #Array n_points, 3 (components), 2 (real and imaginary)
@@ -660,7 +681,8 @@ class EM_Field():
                                 y = np.array(field_file['Mesh line y'])
                                 z = np.array(field_file['Mesh line z'])
                             
-                            assert len(x) * len(y) * len(z) == n, "At least one of e_field files is not compatible with the evaluated or passed nPoints"
+                            if (len(x) * len(y) * len(z)) != n:
+                                raise EM_FieldIOError("At least one of b_field files is not compatible with the evaluated or passed nPoints", "importFields_cst")
                             
                             b_flat = b_field_raw.flatten() #Flatted array (x,y,z to be reshaped as Fortran order). Each element is a np.void type made of three (x-, y-, z-component) couple of float representing real and imaginary parts of that component
                             b_flat = np.array(b_flat.tolist()) #Array n_points, 3 (components), 2 (real and imaginary)
@@ -674,7 +696,7 @@ class EM_Field():
             
             freqs = 1e6*np.array(freqs).astype(np.float)
             
-            return cls(freqs, nPoints, b_field, e_field, **kwargs)
+            return cls(freqs, nPoints, b_field, e_field, props)
         
         except Exception as e:
             if not isinstance(e, EM_FieldIOError): # I cast as EM_FieldIOError all other errors
@@ -684,10 +706,12 @@ class EM_Field():
 
 
     @classmethod
-    def importFields_s4l(cls, directory, freqs, nPorts, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, **kwargs):
+    def importFields_s4l(cls, directory, freqs, nPorts, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, props={}):
         
         if not imp_efield and not imp_bfield:
             raise EM_FieldIOError("At least one among imp_efield and imp_bfield has to be True", "importFields_s4l")
+        if not isinstance(nPorts, int) or nPorts < 1:
+            raise  EM_FieldIOError("nPorts has to be an integer higher than zero")
         if pkORrms.lower() not in ["pk", "rms"]:
             raise  EM_FieldIOError("pkORrms can only be 'pk or 'rms'", "importFields_s4l")
         
@@ -747,7 +771,7 @@ class EM_Field():
                 b_field = b_multCoeff * np.sqrt(1/Pinc_ref) * rmsCoeff * b_field
             
             
-            return cls(freqs, nPoints, b_field, e_field, **kwargs)
+            return cls(freqs, nPoints, b_field, e_field, props)
         
         except Exception as e:
             if not isinstance(e, EM_FieldIOError): # I cast as EM_FieldIOError all other errors

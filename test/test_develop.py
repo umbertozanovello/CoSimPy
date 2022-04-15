@@ -34,6 +34,7 @@ test7 = True
 test8 = True
 test9 = True
 test10 = True
+test11 = True
 
 testE1 = True
 testE2 = True
@@ -41,6 +42,9 @@ testE3 = True
 testE4 = True
 testE5 = True
 testE6 = True
+testE7 = True
+testE8 = True
+testE9 = True
 
 
 
@@ -178,9 +182,15 @@ if test4:
         s_matrix = S_Matrix.importTouchstone(directory+"/S_forPowBalance.s8p")
         em_field = EM_Field.importFields_s4l(directory+"/FieldForPowerBalance", [123e6], 8, imp_bfield=False)
         rf_coil = RF_Coil(s_matrix, em_field)
-
+        
+        idxs = np.ones(np.prod(em_field.nPoints))
+        idxs[np.isnan(em_field.e_field[0,0,0,:])] = 0
+        
+        rf_coil.em_field.addProperty("idxs", idxs)
+        rf_coil.em_field.addProperty("elCond", [0,0.6])
+        
         sup = np.ones(8)
-        powBal = rf_coil.powerBalance(sup,4e-3**3,[0.6]*np.prod(em_field.nPoints),False)
+        powBal = rf_coil.powerBalance(sup,4e-3**3,"elCond",False)
         
         powFromSim4Life = 0.01026513
         
@@ -196,7 +206,7 @@ if test4:
         S_begin = S_Matrix.sMatrixRCseries(R, 5e-12, f)
         Sm = S_Matrix.sMatrixPInetwork(None,None,S_begin)
         rf_coil_loaded = rf_coil.singlePortConnRFcoil([Sm,St,s_open,Sd,Sm,St,s_open,Sd], True)
-        powBud = rf_coil_loaded.powerBalance([100,100],4e-3**3,[0.6]*np.prod(em_field.nPoints),False)
+        powBud = rf_coil_loaded.powerBalance([100,100],4e-3**3,'elCond',False)
                 
         posFlag = True
         tol = -1e-10 #It should be <0 but I use -1e-10 for tollerance tollerance
@@ -298,8 +308,15 @@ if test5:
         
         
 if test6:
-    @pytest.mark.slow
-    def test6():
+    
+    
+    @pytest.mark.parametrize("prop_flag_input, description_input",\
+                             [(True, ""),\
+                              (False, ""),\
+                                  (True, "Prova\n\n\n"),\
+                                  (True, "Prova\t\t\t")])
+    @pytest.mark.slow    
+    def test6(prop_flag_input, description_input):
         """
         TEST 6: Saving and loading
         """
@@ -307,7 +324,18 @@ if test6:
         directory = os.path.join(os.path.dirname(__file__),"filesForTests")
         
         s_matrix = S_Matrix.importTouchstone(directory + "/S_forSaveAndLoading.s4p")
-        em_field = EM_Field.importFields_s4l(directory + "/FieldForSaveAndLoading",[123e6],4,pkORrms='pk',imp_bfield=True, conductivity=[0.6]*382500,conductivity2=[0.6]*382500)
+        
+        if prop_flag_input:
+            idxs=np.round(np.random.uniform(0,5,382500))
+            for i in range(6): # To be sure there is at least one index value from zero to 6 and no EM_FieldPropertiesError is raised
+                idxs[i] = i
+            elCond = np.random.random(6)
+            elPerm = np.random.random(6)
+            props = {'idxs': idxs, 'elCond': elCond, 'elPerm': elPerm}
+        else:
+            props = {}
+        
+        em_field = EM_Field.importFields_s4l(directory + "/FieldForSaveAndLoading",[123e6],4,pkORrms='pk',imp_bfield=True,props=props)
 
         orig_rf_coil = RF_Coil(s_matrix,em_field)
         S_open = S_Matrix(np.ones([1,1,1]),[123e6])
@@ -315,7 +343,7 @@ if test6:
         
         directory = tempfile.mkdtemp() # To use temporary directory
         
-        rf_coil.saveRFCoil(directory+"//saveload_test", "Prova\n\n\n")
+        rf_coil.saveRFCoil(directory+"//saveload_test", description_input)
         loaded_rf_coil = RF_Coil.loadRFCoil(directory+"//saveload_test.cspy")
         
         assert np.allclose(rf_coil.em_field.nPoints, loaded_rf_coil.em_field.nPoints, equal_nan=True)
@@ -399,23 +427,27 @@ if test9:
         
         directory = os.path.join(os.path.dirname(__file__),"filesForTests")
         
-        elCond = np.random.random(370260)
+        idxs = np.round(np.random.uniform(0,1,(370260))).astype(int)
+        idxs[0] = 0 # To be sure that at least one value is 0 to avoid EM_FieldPropertiesError
+        idxs[1] = 1 # To be sure that at least one value is 1 to avoid EM_FieldPropertiesError
+        elCond = np.random.random(2)
 
         s_matrix = S_Matrix.importTouchstone(directory+"/S_forPowBalance.s8p")
-        em_field = EM_Field.importFields_s4l(directory+"/FieldForPowerBalance", [123e6], 8, imp_bfield=False, elCond=elCond)
+        em_field = EM_Field.importFields_s4l(directory+"/FieldForPowerBalance", [123e6], 8, imp_bfield=False, props={'idxs':idxs,'elCond':elCond})
         
         rf_coil = RF_Coil(s_matrix, em_field)
-    
+        
+        
         v_inc = np.random.random(rf_coil.em_field.nPorts) + 1j*np.random.random(rf_coil.em_field.nPorts)
         
         point = [20,10,50]
-        q_matrix = rf_coil.em_field.compQMatrix(point=point, freq=rf_coil.em_field.frequencies[0], z0_ports=rf_coil.s_matrix.z0, elCond=None)
+        q_matrix = rf_coil.em_field.compQMatrix(point=point, freq=rf_coil.em_field.frequencies[0], z0_ports=rf_coil.s_matrix.z0, elCond_key='elCond')
         
         pd_q = v_inc.conj().T @ q_matrix @ v_inc
         
         p_inc = (np.abs(v_inc)**2 / rf_coil.s_matrix.z0) * np.exp(1j*np.angle(v_inc))
         
-        pd_cos = rf_coil.em_field.compPowDens(elCond=None, p_inc=p_inc)[0]
+        pd_cos = rf_coil.em_field.compPowDens(elCond_key='elCond', p_inc=p_inc)[0]
         
         pd_cos = pd_cos.reshape(rf_coil.em_field.nPoints, order='F')[tuple(point)]
         
@@ -437,7 +469,23 @@ if test10:
         s_loaded = S_Matrix.importTouchstone(directory+"/exported_touchstone.s48p")
         
         assert(np.isclose(np.round(s_orig.S,6),s_loaded.S).all())
+
+      
+if test11:
+    @pytest.mark.slow  
+    def test11():
+        """
+        TEST 9: Check Export xmf
+        """
         
+        directory_input = os.path.join(os.path.dirname(__file__),"filesForTests//FieldForSaveAndLoading")
+        em_field = EM_Field.importFields_s4l(directory_input,[123.2e6],4,imp_efield=True,imp_bfield=True)
+        
+        directory_output = tempfile.mkdtemp() # To use temporary directory
+        em_field.exportXMF(directory_output+"//test11")
+        
+        assert(os.path.exists(directory_output+"//test11.xmf"))
+        assert(os.path.exists(directory_output+"//test11.h5"))
         
 if testE1:
     @pytest.mark.parametrize("s_input, f_input, z0_input",\
@@ -474,7 +522,7 @@ if testE3:
                                   ("-%&4d", None, "options")])
     def testE3(filename_input, version_input, options_input):
         """
-        TEST E2: Check exportTouchstone exceptions
+        TEST E2: Check importTouchstone exceptions
         """
         
         s_matrix = S_Matrix(np.array([[[0,1],[1,0]]]), [123e6])
@@ -512,15 +560,14 @@ if testE5:
             S_Matrix.fromYtoS(Y_input, freqs_input, z0_input)
 
 if testE6:
+    
     @pytest.mark.parametrize("e_input, b_input, f_input, nPoints_input",\
                              [(None, None, [123e6, 125e6], [2,2,2]),\
                               (np.random.random([5,3,3,8]), None, [123e6, 125e6], [2,2,2]),\
                                   (None, np.random.random([5,3,3,8]), [123e6, 125e6], [2,2,2]),\
                                       (np.random.random([2,3,1,8]),np.random.random([2,3,3,8]), [123e6, 125e6], [2,2,2]),\
                                           (np.random.random([2,3,3,8]),np.random.random([2,3,3,8]), [123e6, 125e6], [2,2,3]),\
-                                              (np.random.random([2,3,3,8]),np.random.random([2,2,3,8]), [123e6, 125e6], [2,2,2])])
-
-                                     
+                                              (np.random.random([2,3,3,8]),np.random.random([2,2,3,8]), [123e6, 125e6], [2,2,2])])                                
     def testE6(e_input, b_input, f_input, nPoints_input):
         """
         TEST E6: Check EM_Field initialisation exceptions
@@ -528,3 +575,65 @@ if testE6:
        
         with pytest.raises(EM_FieldError):
             EM_Field(f_input, nPoints_input, b_input, e_input)
+
+if testE7:
+    @pytest.mark.parametrize("props_input",\
+                             [(None),\
+                              ([1]),\
+                                  ({"idx": [0,1]}),\
+                                      ({"idxs": [0,2,3,4,5,6,7,2]}),\
+                                          ({"idxs": [-1,0,1,2,3,4,5,6]}),\
+                                              ({"idxs": [0,1,2,3,4,5,6,7], "prop_1": [1]}),\
+                                                  ({"idxs": [0,1,2,3,1,2,3,1], "prop_1": [1,2,3]}),\
+                                                      ({"idxs": [0,1,0,1,1,1,1,1], "prop_1": [1,2], "prop_2": [0.1, 0.2j]}),\
+                                                          ({"idxs": [0,.1,0,.1,.1,.1,.1,.1], "prop_1": [1,2], "prop_2": [0.1, 0.2]})])
+    def testE7(props_input):
+        """
+        TEST E7: Check EM_Field properties exceptions
+        """
+        b_field = np.random.random((1,1,3,8))
+        nPoints = [2,2,2]
+        freqs = [123e6]
+
+        with pytest.raises(EM_FieldError):
+            EM_Field(freqs, nPoints, b_field, None, props_input)
+            
+if testE8:
+    @pytest.mark.parametrize("directory_input, freqs_input, nPorts_input, nPoints_input, imp_efield_input, imp_bfield_input",\
+                             [("./", ["123.2"], 4, None, True, False),\
+                              (None, ["123.20"], 4, None, True, False),\
+                                  (None, ["123.2"], 5, None, True, False),\
+                                      (None, ["123.2"], 4, [10,10], True, False),\
+                                          (None, ["123.2"], 4, None, False, False),\
+                                              (None, ["123.2"], 4, None, True, True),\
+                                                  (None, ["123.2"], 0, None, True, False),\
+                                                      (None, ["123.2"], 1.5, None, True, False)])
+    @pytest.mark.slow
+    def testE8(directory_input, freqs_input, nPorts_input, nPoints_input, imp_efield_input, imp_bfield_input):
+        """
+        TEST E8: Check EM_Field import from CST exceptions
+        """
+        
+        if directory_input is None:
+            directory_input = os.path.join(os.path.dirname(__file__),"filesForTests//FieldFromCST")
+
+        with pytest.raises(EM_FieldError):
+            EM_Field.importFields_cst(directory_input, freqs_input, nPorts_input, nPoints=nPoints_input, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=imp_efield_input, imp_bfield=imp_bfield_input, fileType = 'hdf5', col_ascii_order = 0, props={})
+
+if testE9:
+    @pytest.mark.parametrize("directory_input, freqs_input, nPorts_input, imp_efield_input, imp_bfield_input",\
+                             [("./", [123.2e6], 4, True, True),\
+                              (None, 123.2e6, 4, True, True),\
+                                  (None, [123.2e6,123e6], 4, True, True),\
+                                      (None, [123.2e6], 5, True, True),\
+                                          (None, [123.2e6], 4, False, False)])
+    def testE9(directory_input, freqs_input, nPorts_input,  imp_efield_input, imp_bfield_input):
+        """
+        TEST E8: Check EM_Field import from Sim4Life exceptions
+        """
+        
+        if directory_input is None:
+            directory_input = os.path.join(os.path.dirname(__file__),"filesForTests//FieldForSaveAndLoading")
+
+        with pytest.raises(EM_FieldError):
+            EM_Field.importFields_s4l(directory_input, freqs_input, nPorts_input, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=imp_efield_input, imp_bfield=imp_bfield_input, props={})

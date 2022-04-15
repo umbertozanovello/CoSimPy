@@ -1067,7 +1067,7 @@ number of frequency values over which the electric and magnetic flux density fie
 * `EM_Field.nPorts` : *int* <br>
 number of ports associated with the electric and magnetic flux density fields (N<sub>P</sub>)
 * `EM_Field.properties` : *dict* <br>
-*dictionary* which include additional properties related to the electric and magnetic flux density fields. These can be, for example, sample electric permittivity, electrical conductivity. Each additional property has to be defined over the same spatial points over which the electric and magnetic flux density fields are defined and must be represented by a *real* value.
+*dictionary* which include additional properties related to the points on which the electric and magnetic flux density fields are defined. These can be, for example, the electric permittivity and electrical conductivity. Refer to the `EM_Field.__init__` method for further details about the way this dictionary has to be defined.
 
 ### Methods
 
@@ -1082,11 +1082,15 @@ N<sub>f</sub> *list* or *numpy ndarray* representing the frequency values, in he
 * nPoints : *list* or *numpy ndarray* <br>
 *list* or *numpy ndarray* with a length equal to three reporting the number of spatial points over which the electric and magnetic flux density fields are defined: [N<sub>x</sub>, N<sub>y</sub>, N<sub>z</sub>]
 * b_field : *numpy ndarray*, *optional* <br>
-N<sub>f</sub> 🞩 N<sub>P</sub> 🞩 3 🞩 N<sub>N</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which the magnetic flux density field, expressed in tesla, is defined. N<sub>P</sub> is the number of ports of the device and N<sub>N</sub> is the number of spatial points over which the magnetic flux density field is defined. `b_field[i,k,j,n]` represents the rms of the `j` component of the magnetic flux density field at the frequency identified by the index `i`, when the port `k` is supplied with 1 W incident power in the point identified by index `n`. The values along the last axis of the array follow a fortran-like index ordering (first index changing faster) considering a Cartesian coordinate system. It can be `None` (default value) if the magnetic flux density field is not defined.
+N<sub>f</sub> 🞩 N<sub>P</sub> 🞩 3 🞩 N<sub>N</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which the magnetic flux density field, expressed in tesla, is defined. N<sub>P</sub> is the number of ports of the device and N<sub>N</sub> is the number of spatial points over which the magnetic flux density field is defined. `b_field[i,k,j,n]` represents the rms of the `j` component of the magnetic flux density field at the frequency identified by the index `i`, when the port `k` is supplied with 1 W incident power in the point identified by index `n`. The values along the last axis of the array follow a fortran-like index ordering (first index changing faster) considering a Cartesian coordinate system. It can be `None` (default value) if the magnetic flux density field is not defined
 * e_field : *numpy ndarray*, *optional* <br>
-N<sub>f</sub> 🞩 N<sub>P</sub> 🞩 3 🞩 N<sub>N</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which the electric field, expressed in volts per meter, is defined. N<sub>P</sub> is the number of ports of the device and N<sub>N</sub> is the number of spatial points over which the electric field is defined. `EM_Field.e_field[i,k,j,n]` represents the rms of the `j` component of the electric field at the frequency identified by the index `i`, when the port `k` is supplied with 1 W incident power in the point identified by index `n`. The values along the last axis of the array follow a fortran-like index ordering (first index changing faster)  considering a Cartesian coordinate system. It can be `None` (default value) if the electric field is not defined.
-* **kwargs : *list*, *numpy ndarray*, *optional* <br>
-additional properties defined over the same N<sub>N</sub> spatial points over which the electric and magnetic flux density fields are defined. They can be *list* or *numpy ndarray* with a length equal to N<sub>N</sub>
+N<sub>f</sub> 🞩 N<sub>P</sub> 🞩 3 🞩 N<sub>N</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which the electric field, expressed in volts per meter, is defined. N<sub>P</sub> is the number of ports of the device and N<sub>N</sub> is the number of spatial points over which the electric field is defined. `EM_Field.e_field[i,k,j,n]` represents the rms of the `j` component of the electric field at the frequency identified by the index `i`, when the port `k` is supplied with 1 W incident power in the point identified by index `n`. The values along the last axis of the array follow a fortran-like index ordering (first index changing faster)  considering a Cartesian coordinate system. It can be `None` (default value) if the electric field is not defined
+* props : *dict*, *optional* <br>
+additional properties defined over the same N<sub>N</sub> spatial points over which the electric and magnetic flux density fields are defined. The `props` dictionary has to be composed in the following way:
+  - A `idxs` key has to be present. `props['idxs']` is a N<sub>N</sub> *list* or *numpy ndarray* of integer numbers representing the indeces of the specific points. The indices have to start from zero and no integer numbers have to be skipped from zero to the maximum index value. The values in the array follow a fortran-like index ordering (first index changing faster) considering a Cartesian coordinate system.
+  - Any other key has to refer to a *list* or *numpy ndarray* with a legth equal to the maximum index contained in `props['idxs']` plus one. The property `props['prop_1'][idx]` is the 'prop_1' property relevant to all the spatial points identified by an index equal to idx in `props['idxs']`
+
+  Default is *{}*
 
 Returns
 
@@ -1217,16 +1221,15 @@ Returns
 * sens : *numpy ndarray* <br>
 N<sub>f</sub> 🞩 N<sub>P</sub> 🞩 2 🞩 N<sub>N</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which the sensitivity, expressed in tesla, are defined. N<sub>P</sub> is the number of ports of the device and N<sub>N</sub> is the number of spatial points over which the sensitivities are defined. `sens[i,k,j,n]` represents the B<sub>1</sub><sup>+</sup> (if j is equal to 0) or B<sub>1</sub><sup>-</sup> (if j is equal to 1) complex value at the frequency identified by the index i, generated by 1 W incident power at port k in the point identified by index n. The values along the last axis of the array follow a fortran-like index ordering (first index changing faster) considering a Cartesian coordinate system
 
-#### `compPowDens(self, elCond=None, p_inc=None)`
+#### `compPowDens(self, elCond_key, p_inc=None)`
 
 If the electric field is defined, the method returns the power density in W/m<sup>3</sup>.
 
 Parameters
 
 * self : *EM_Field*
-* elCond : *list*, *numpy ndarray*, *optional*<br>
-*list* or *numpy ndarray* reporting the electrical conductivity associated with the 
-N<sub>N</sub> points over which the electric field is defined. If `None`, the method looks for the homonym property defined among the **kwargs of the class. Default is `None`
+* elCond_key : *string*<br>
+*string* of the key in the `self.properties` dictionary associated with the electrical conductivity
 * p_inc : *list*, *numpy ndarray*, *optional*<br>
 *list* or *numpy ndarray* with a length equal to the number of ports of the device. `p_inc[i]` is the power incident to the i-th port considered for the power density computation. Default is `None`
 
@@ -1235,7 +1238,7 @@ Returns
 * powDens : *numpy ndarray* <br>
 if p_inc is `None`: N<sub>f</sub> 🞩 N<sub>P</sub> x N<sub>N</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which the power density, expressed in W/m<sup>3</sup>, is defined. N<sub>P</sub> is the number of ports of the device and N<sub>N</sub> is the number of spatial points over which the power density is defined. `powDens[i,k,n]` represents the power density at the frequency identified by the index i, generated by 1 W incident power at port k with all the other ports closed over their characteristic impedance, in the point identified by index n. The values along the last axis of the array follow a Fortran-like index ordering (first index changing faster) considering a Cartesian coordinate system. If p_inc is not `None`: N<sub>f</sub> x N<sub>N</sub> *numpy ndarray* where the power density is computed in the N<sub>N</sub> spatial points at the N<sub>f</sub> frequency values when the device is supplied according to the p_inc list passed as argument to the method
 
-#### `compDepPow(self, voxVols, elCond=None, p_inc=None)`
+#### `compDepPow(self, voxVols, elCond_key, p_inc=None)`
 
 If the electric field is defined, the method returns the power, in watt, deposited in the voxels over which the electric field is defined
 
@@ -1244,9 +1247,8 @@ Parameters
 * self : *EM_Field*
 * voxVols : *int*, *float*<br>
 volume, in m<sup>3</sup>, of each voxel over which the electric field has been defined
-* elCond : *list*, *numpy ndarray*, *optional*<br>
-*list* or *numpy ndarray* reporting the electrical conductivity associated with the 
-N<sub>N</sub> points over which the electric field is defined. If `None`, the method looks for the homonym property defined among the **kwargs of the class. Default is `None`
+* elCond_key : *string*<br>
+*string* of the key in the `self.properties` dictionary associated with the electrical conductivity
 * p_inc : *list*, *numpy ndarray*, *optional*<br>
 *list* or *numpy ndarray* with a length equal to the number of ports of the device. p_inc[i] is the power incident to the i-th port considered for the power density computation. Default is `None`
 
@@ -1255,13 +1257,13 @@ Returns
 * depPow : *numpy ndarray* <br>
 if p_inc is `None`: N<sub>f</sub> 🞩 N<sub>P</sub> *numpy ndarray* where N<sub>f</sub> is the number of frequency values over which the deposited power, expressed in watt, is defined and N<sub>P</sub> is the number of ports of the device. `depPow[i,k]` represents the deposited power at the frequency identified by the index i, generated by 1 W incident power at port k with all the other ports closed over their characteristic impedance. If p_inc is not `None`: N<sub>f</sub> *numpy ndarray* where the deposited power is computed at the N<sub>f</sub> frequency values when the device is supplied according to the p_inc list passed as argument to the method
 
-#### `compQMatrix(self, point, freq, z0_ports, elCond=None)`
+#### `compQMatrix(self, point, freq, z0_ports, elCond_key=None)`
 
 If the electric field is defined, the method returns the Q matrix referred to the specified spatial point.
 
 <center>PD = V<sup>+<sup>H</sup></sup> Q V<sup>+</sup></center>
 
-where pD is the power density in the specified spatial point (W/m<sup>3)</sup>, V<sup>+</sup> is the vector of the voltages incident to the device ports and H is conjugate transpose.
+where PD is the power density in the specified spatial point (W/m<sup>3)</sup>, V<sup>+</sup> is the vector of the voltages incident to the device ports and H is conjugate transpose.
 
 Parameters
 
@@ -1272,8 +1274,8 @@ three element *list* or *numpy ndarray* used to specify the spatial position whe
 frequency value at which the Q matrix is evaluated. The value has to be included in the `self.frequencies` array
 * z0_ports *list*, *numpy ndarray*, *int*, *float*, *optional* <br>
 port impedances in ohm. These can be given as a *list* or *numpy ndarray* with length equal to the number of ports of the device. If all the ports share the same impedances, a *float* or *int* value can be passed as parameter. The format is compatible with that of the *S_Matrix* property `z0`. Default is 50 ohm
-* elCond : *int*, *float*, *optional* <br>
-*int* or *float* representing the electrical conductivity in S/m in the spatial point represented by the "point" argument. If `None`, the method looks for the homonym property defined among the **kwargs of the class. If such a property is not found, a conductivity equal to 1 S/m is considered. Default is `None`
+* elCond_key : *string*<br>
+*string* of the key in the `self.properties` dictionary associated with the electrical conductivity. If `None`, the Q matrix is reported for unit conductivity. Default is `None`
 
 Returns
 
@@ -1630,7 +1632,7 @@ Returns
 <img src="./images/duplicateSeries.png" alt="drawing" width="400"/>
 </p>
 
-#### `powerBalance(self, p_inc, voxVols=None, elCond=None, printReport=False)`
+#### `powerBalance(self, p_inc, voxVols=None, elCond_key=None, printReport=False)`
 
 when the ports of the device are supplied according to the incident powers listed in p_inc, the method computes the power balance comprising: the total reflected power, the power lost in the last connected network, the power deposited by the electric field, the sum of the radiated power and power lost in the unconnected device
 
@@ -1639,12 +1641,11 @@ Parameters
 * p_inc : *list*, *numpy ndarray*
 *list* or *numpy ndarray* with a length equal to the number of ports of the device. `p_inc[i]` is the power incident to the i-th port considered for the power balance computation
 * voxVols : *int*, *float*
-volume, in m<sup>3</sup>, of each voxel over which the electric field has been defined. This argument can be `None` if the `e_field` property of the *EM_Field* instance is `None`. Default is `None`.
-* elCond : *list*, *numpy ndarray*, *optional*
-*list* or *numpy ndarray* reporting the electrical conductivity associated with the 
-N<sub>N</sub> points over which the electric field is defined. If `None`, the method looks for the homonym property defined among the *EM_Field* instance `properties` property. Default is `None`
+volume, in m<sup>3</sup>, of each voxel over which the electric field has been defined. If `None`, the power deposited by the elctric field is not accounted in the power balance computation. Default is `None`.
+* elCond_key : *string*<br>
+*string* of the key in the `self.properties` dictionary associated with the electrical conductivity. If `None`, the power deposited by the elctric field is not accounted in the power balance computation. Default is `None`
 * printReport : *bool*<br>
-if `True` the power balance is printed when the method is called
+if `True` a power balance report is printed when the method is called
 
 
 Returns
@@ -1652,13 +1653,13 @@ Returns
 * powBal : *dict* <br>
   dictionary with the following keys:
   - *P_inc_tot* : *numpy  ndarray*<br>
-  N<sub>f</sub> elements *numpy  ndarray* reporting the total incident power at each frequency value. If the `e_field` property of the *EM_Field* instance in `None`, N<sub>f</sub> is the number of frequency values over which the *S_Matrix* instance has been defined. Otherwise N<sub>f</sub> is the number of frequency values over which the *EM_Field* instance has been defined
+  N<sub>f</sub> elements *numpy  ndarray* reporting the total incident power at each frequency value. If the `em_field` property of the `RF_Coil` instance, the `e_field` property of the *EM_Field* instance, the `voxVols` argument or the `elCond_key` argument are `None`, N<sub>f</sub> is the number of frequency values over which the *S_Matrix* instance has been defined. Otherwise N<sub>f</sub> is the number of frequency values over which the *EM_Field* instance has been defined
   - *P_refl* : *numpy  ndarray*<br>
-  N<sub>f</sub> elements *numpy  ndarray* reporting the total reflected power at each frequency value. If the `e_field` property of the *EM_Field* instance in `None`, N<sub>f</sub> is the number of frequency values over which the *S_Matrix* instance has been defined. Otherwise N<sub>f</sub> is the number of frequency values over which the *EM_Field* instance has been defined
+  N<sub>f</sub> elements *numpy  ndarray* reporting the total reflected power at each frequency value. If the `em_field` property of the `RF_Coil` instance, the `e_field` property of the *EM_Field* instance, the `voxVols` argument or the `elCond_key` argument are `None`, N<sub>f</sub> is the number of frequency values over which the *S_Matrix* instance has been defined. Otherwise N<sub>f</sub> is the number of frequency values over which the *EM_Field* instance has been defined
   - *P_dep* : *numpy  ndarray*, *optional*<br>
-  N<sub>f</sub> elements *numpy  ndarray* reporting the power deposited by the electric field in the non-zero electrical conductivity voxels. N<sub>f</sub> is the number of frequency values over which the *EM_Field* instance has been defined. If the `e_field` property of the *EM_Field* instance is `None`, this key will not be defined
-  - *P_circ_loss* : N<sub>f</sub> elements *numpy  ndarray* reporting the power lost in the last connected network at each frequency value. If the `e_field` property of the *EM_Field* instance in `None`, N<sub>f</sub> is the number of frequency values over which the *S_Matrix* instance has been defined. Otherwise N<sub>f</sub> is the number of frequency values over which the *EM_Field* instance has been defined. If the *RF_Coil* instance has never been connected to any external network or connection data have not been stored, this key will not be defined
-  - *P_other* : N<sub>f</sub> elements *numpy  ndarray* reporting the power lost due to other type of losses (*e.g* radiation, power lost in the unconnected device) at each frequency value. *P_other* is computed as the total (at all ports) incident power subtracted by the other computed power losses. If the `e_field` property of the *EM_Field* instance in `None`, N<sub>f</sub> is the number of frequency values over which the *S_Matrix* instance has been defined. Otherwise N<sub>f</sub> is the number of frequency values over which the *EM_Field* instance has been defined
+  N<sub>f</sub> elements *numpy  ndarray* reporting the power deposited by the electric field. N<sub>f</sub> is the number of frequency values over which the *EM_Field* instance has been defined. If the `em_field` property of the `RF_Coil` instance, the `e_field` property of the *EM_Field* instance, the `voxVols` argument or the `elCond_key` argument are `None`, this key will not be defined
+  - *P_circ_loss* : N<sub>f</sub> elements *numpy  ndarray* reporting the power lost in the last connected network at each frequency value. If the `em_field` property of the `RF_Coil` instance, the `e_field` property of the *EM_Field* instance, the `voxVols` argument or the `elCond_key` argument are `None`, N<sub>f</sub> is the number of frequency values over which the *S_Matrix* instance has been defined. Otherwise N<sub>f</sub> is the number of frequency values over which the *EM_Field* instance has been defined. If the *RF_Coil* instance has never been connected to any external network or connection data have not been stored, this key will not be defined
+  - *P_other* : N<sub>f</sub> elements *numpy  ndarray* reporting the power lost due to other type of losses (*e.g* radiation, power lost in the unconnected device) at each frequency value. *P_other* is computed as the total (at all ports) incident power subtracted by the other computed power losses. If the `em_field` property of the `RF_Coil` instance, the `e_field` property of the *EM_Field* instance, the `voxVols` argument or the `elCond_key` argument are `None`, N<sub>f</sub> is the number of frequency values over which the *S_Matrix* instance has been defined. Otherwise N<sub>f</sub> is the number of frequency values over which the *EM_Field* instance has been defined
 
 #### `connectPorts(self, port_pairs, sMats, comp_Pinc=True)`
 
