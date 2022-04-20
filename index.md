@@ -12,8 +12,10 @@ CoSimPy is an open source Pyhton library optimised for Magnetic Resonance Imagin
   - [News & Versions](#news-versions)
   - [Getting Started](#getting-started)
   - [Deployment](#deployment)
-  - [Full documentation](#full-documentation)
+  - [Full Documentation](#full-documentation)
+  - [Test](#test)
   - [License](#license)
+  - [Related Publications](#related-publications)
   - [Acknowledgments](#acknowledgments)
 
 ## News & Versions
@@ -136,9 +138,22 @@ rf_coil_line_matched.s_matrix.plotS(["S1-1"])
 ```
 ![](https://github.com/umbertozanovello/CoSimPy/blob/main/docs/images/example_S.png?raw=true)
 
+
 ## Full Documentation
 
 A more detailed documentation of CoSimPy is available [here](https://github.com/umbertozanovello/CoSimPy/blob/main/docs/Documentation.md)
+
+## Test
+
+For testing the library, [pytest](https://docs.pytest.org/en/6.2.x/) is required.<br>
+After installing CoSimPy, download the "test" folder and, from a terminal execute:
+```
+cd path_to_test_folder/test
+pytest -v
+```
+Different tests can be enabled/disabled through the relevant boolean flags in test_develop.py
+
+Slower test can be skipped adding the --runfast option in the terminal
 
 ## License
 
@@ -146,6 +161,9 @@ This project is licensed under the MIT
 License - see the [LICENSE](LICENSE) file for
 details.
 
+## Related Publications
+
+U. Zanovello et al., "CoSimPy: an Open-Source Python Library for MRI Radiofrequency Coil EM/Circuit Cosimulation", Computer Methods and Programs in Biomedicine 2022, 106684, https://doi.org/10.1016/j.cmpb.2022.106684
 
 ## Acknowledgments
 
