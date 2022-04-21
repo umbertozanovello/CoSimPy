@@ -35,6 +35,7 @@ test8 = True
 test9 = True
 test10 = True
 test11 = True
+test12 = True
 
 testE1 = True
 testE2 = True
@@ -45,6 +46,10 @@ testE6 = True
 testE7 = True
 testE8 = True
 testE9 = True
+testE10 = True
+testE11 = True
+testE12 = True
+testE13 = True
 
 
 
@@ -457,7 +462,7 @@ if test10:
     @pytest.mark.filterwarnings("ignore")
     def test10():
         """
-        TEST 9: Check Touchstone file import/export
+        TEST 10: Check Touchstone file import/export
         """
         
         directory = os.path.join(os.path.dirname(__file__),"filesForTests")
@@ -475,7 +480,7 @@ if test11:
     @pytest.mark.slow  
     def test11():
         """
-        TEST 9: Check Export xmf
+        TEST 11: Check Export xmf
         """
         
         directory_input = os.path.join(os.path.dirname(__file__),"filesForTests//FieldForSaveAndLoading")
@@ -486,6 +491,25 @@ if test11:
         
         assert(os.path.exists(directory_output+"//test11.xmf"))
         assert(os.path.exists(directory_output+"//test11.h5"))
+        
+if test12:
+   
+    def test12():
+        """
+        TEST 12: Check EM_Field maskEMField
+        """
+        
+        props = {"idxs": [0,0,1,1,1,1,2,2]}
+        e_field = np.random.rand(10,5,3,8)
+        b_field = np.random.rand(10,5,3,8)
+        freqs = np.linspace(120e6,130e6,10)
+        em_field = EM_Field(freqs, [2,2,2], e_field,b_field, props)
+        
+        em_field.maskEMField(1)
+        
+        
+        assert(np.isnan(em_field.e_field[:,:,:,2:6]).all())
+        assert(np.isnan(em_field.b_field[:,:,:,2:6]).all())
         
 if testE1:
     @pytest.mark.parametrize("s_input, f_input, z0_input",\
@@ -504,6 +528,7 @@ if testE1:
 if testE2:
     @pytest.mark.parametrize("filename_input, version_input, options_input",\
                              [("not_existent_folder/test_export", "1.1", None),\
+                              ("", "1.1", None),\
                               ("test_export", 1.1, None),\
                                   ("-%&4d", None, "options")])
     def testE2(filename_input, version_input, options_input):
@@ -629,7 +654,7 @@ if testE9:
                                           (None, [123.2e6], 4, False, False)])
     def testE9(directory_input, freqs_input, nPorts_input,  imp_efield_input, imp_bfield_input):
         """
-        TEST E8: Check EM_Field import from Sim4Life exceptions
+        TEST E9: Check EM_Field import from Sim4Life exceptions
         """
         
         if directory_input is None:
@@ -637,3 +662,65 @@ if testE9:
 
         with pytest.raises(EM_FieldError):
             EM_Field.importFields_s4l(directory_input, freqs_input, nPorts_input, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=imp_efield_input, imp_bfield=imp_bfield_input, props={})
+    
+if testE10:
+    @pytest.mark.parametrize("s_matrix_input, em_field_input",\
+                             [(None, None),\
+                              (S_Matrix.sMatrixOpen([123e6, 128e6]), np.nan),\
+                                  (S_Matrix.sMatrixOpen([123e6, 128e6]), EM_Field([123e6, 128e6, 130e6], [5,5,5], np.random.rand(3,1,3,5**3)))])
+    def testE10(s_matrix_input, em_field_input):
+        """
+        TEST E9: Check RF_Coil initialisation exceptions
+        """
+        
+        with pytest.raises(RF_CoilError):
+            RF_Coil(s_matrix_input, em_field_input)
+            
+
+if testE11:
+    @pytest.mark.parametrize("filename_input, description_input",\
+                              [("not_existent_folder/test_save", ""),\
+                                   ("", ""),\
+                                       (tempfile.mkdtemp()+"/test_save", 10)])
+    def testE11(filename_input, description_input):
+        """
+        TEST E11: Check RF_Coil saving exceptions
+        """
+        
+        with pytest.raises(RF_CoilError):
+            s_matrix = S_Matrix.sMatrixTrLine(30e-2,[123e6])
+            
+            rf_coil = RF_Coil(s_matrix, None)
+            rf_coil.saveRFCoil(filename_input, description_input)
+
+            
+if testE12:
+    @pytest.mark.parametrize("filename_input",\
+                              [("not_existent_file"),\
+                                   ("")])
+    def testE12(filename_input):
+        """
+        TEST E11: Check RF_Coil loading exceptions
+        """
+        
+        with pytest.raises(RF_CoilError):
+            RF_Coil.loadRFCoil(filename_input)
+        
+if testE13:
+   @pytest.mark.parametrize("idx_input",\
+                              [(-1),\
+                                   (10),\
+                                       (None),\
+                                           ""])
+   def testE13(idx_input):
+        """
+        TEST E13: Check EM_Field maskEMField exceptions
+        """
+        
+        props = {"idxs": [0,0,1,1,1,1,2,2]}
+        e_field = np.random.rand(10,5,3,8)
+        b_field = np.random.rand(10,5,3,8)
+        freqs = np.linspace(120e6,130e6,10)
+        em_field = EM_Field(freqs, [2,2,2], e_field,b_field, props)
+        with pytest.raises(EM_FieldError):
+            em_field.maskEMField(idx_input)

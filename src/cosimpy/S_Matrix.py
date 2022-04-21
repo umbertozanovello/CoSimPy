@@ -265,6 +265,7 @@ class S_Matrix():
             
             return fig
     
+    
     def plotSPanel(self, num_nn, smooth=True):
         
         if num_nn >= self.__nPorts:
@@ -526,6 +527,8 @@ class S_Matrix():
             default_options["frequency_unit"] = "GHz"
             default_options["parameter"] = "S"
             
+            if not filename:
+                raise S_MatrixTouchstoneFileError("Please, provide a correct filename", "exportTouchstone")
             if filename.split(".")[-1] != ".s%dp"%self.__nPorts:
                 filename += ".s%dp"%self.__nPorts
             

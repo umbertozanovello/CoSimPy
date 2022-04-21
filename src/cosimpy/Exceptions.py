@@ -1,6 +1,7 @@
 import numpy as np
 import warnings
 
+
 def warning_format(message, category, filename, lineno, file=None, line=None):
     return '\n%s: Line %s - WARNING - %s\n' % (filename.split("/")[-1], lineno, message)
 warnings.formatwarning = warning_format
@@ -251,6 +252,52 @@ class EM_FieldPropertiesError(EM_FieldError):
 class EM_FieldIOError(EM_FieldError):
     """
     Error relevant to the IO of the EM_Field instance
+    """
+    
+    def __init__(self, message="", callingMethod=None):
+        super().__init__(message, callingMethod)
+        self.__message = message
+        
+
+###########################
+# RF_Coil Exceptions
+###########################
+
+class RF_CoilError(Exception):
+    """
+    General error class relevant to the RF_Coil class
+    """
+    
+    def __init__(self, message="", callingMethod=None):
+        super().__init__(message)
+        self.__message = message
+        self.__callingMethod = callingMethod
+    
+    def __str__(self):
+        if self.__callingMethod is None:
+            return self.__message
+        else:
+            return "RF_Coil.%s: %s" %(self.__callingMethod, self.__message)
+        
+    @classmethod
+    def check(cls, s_matrix, em_field, calling_method=None):
+        from .S_Matrix import S_Matrix
+        from .EM_Field import EM_Field
+        
+        if not isinstance(s_matrix, S_Matrix):
+            raise cls("s_matrix must be an instance of the S_Matrix class")
+        if em_field is not None:
+            if not isinstance(em_field, EM_Field):
+                raise cls("em_field must either be None or an instance of the EM_Field class")
+            if em_field.nPorts != s_matrix.nPorts:
+                raise cls("The s_matrix and the em_field are not compatible. The number of ports in the s_matrix is different to that expected from the em_field")
+            if not all(elem in s_matrix.frequencies for elem in em_field.frequencies):
+                raise cls("At last one frequency value at which the em_field is computed differs from the frequencies at which the S matrix is defined")
+
+
+class RF_CoilIOError(RF_CoilError):
+    """
+    Error relevant to the IO of the RF_Coil instance
     """
     
     def __init__(self, message="", callingMethod=None):

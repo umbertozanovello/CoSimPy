@@ -152,11 +152,17 @@ class EM_Field():
         if prop_key not in self.__props.keys():
             raise EM_FieldPropertiesError("%s has not been found among the keys of the properties dictionary", "getProperty")
         
-        return self.__props[prop_key][self.__props['idxs']]
+        if prop_key == "idxs":
+            return self.__props[prop_key]
+        else:
+            return self.__props[prop_key][self.__props['idxs']]
     
     
     def addProperty(self, prop_key, prop_value):
         
+        if prop_key in self.__props:
+            raise EM_FieldPropertiesError("The property is already present in the properties dictionary", "addProperty")
+            
         new_props = copy(self.__props)
         new_props[prop_key] = prop_value
         
@@ -168,7 +174,22 @@ class EM_Field():
                 
         self.__props = new_props
         
-        
+    
+    def maskEMField(self, idx):
+        if not isinstance(idx,int):
+             raise EM_FieldPropertiesError("idx is supposed to be an integer number", "maskEMField")
+        if not self.__props:
+            raise EM_FieldPropertiesError("There are no properties defined for the EM_Field instance", "maskEMField")
+        if not idx in self.__props["idxs"]:
+            raise EM_FieldPropertiesError("The passed index is not present among the indices in the properties dictionary", "maskEMField")
+    
+        if self.__e_field is not None:
+            self.__e_field[:,:,:,self.__props["idxs"]==idx] = np.nan
+            
+        if self.__b_field is not None:
+            self.__b_field[:,:,:,self.__props["idxs"]==idx] = np.nan
+            
+            
     def compSensitivities(self):
         
         if self.__b_field is None:
@@ -274,8 +295,157 @@ class EM_Field():
         return q_matrix
 
     
+    def plotProperty(self, prop_key, plane, sliceIdx, vmin=None, vmax=None):
+        
+        prop = self.getProperty(prop_key) # All the checks are perfomed in this method
+        
+        if self.__props[prop_key].dtype != int and self.__props[prop_key].dtype != float:
+            raise EM_FieldError("Only integer or float properties can be plotted", "plotProperty")
+            
+        prop = prop.reshape(self.__nPoints, order='F')
+        
+        fig, ax = plt.subplots(1,1)
+        fig.canvas.set_window_title("%s_%s_%d" %(prop_key, plane, sliceIdx))
+        fig.suptitle("%s, Index: %d" %(prop_key, sliceIdx))
+        
+        if plane.lower() == 'xy' or  plane.lower() == 'yz':
+            im = ax.imshow(prop[:,:,sliceIdx].T,vmin=vmin,vmax=vmax)
+            ax.set_xlabel("x")
+            ax.set_ylabel("y")
+        elif plane.lower() == 'xz' or plane.lower() == 'zx':
+            im = ax.imshow(prop[:,sliceIdx,:].T,vmin=vmin,vmax=vmax)
+            ax.set_xlabel("x")
+            ax.set_ylabel("z")
+        elif plane.lower() == 'yz' or plane.lower() == 'zy':
+            im = ax.imshow(prop[sliceIdx,:,:].T,vmin=vmin,vmax=vmax)
+            ax.set_xlabel("y")
+            ax.set_ylabel("z")
+            
+        fig.colorbar(im)
+        
+        return fig
+    
+
+    def plotEMField(self, em_field, comp, freq, ports, plane, sliceIdx, vmin=None, vmax=None):
+        
+        if em_field.lower() not in ["b_field", "e_field"]:
+            raise EM_FieldError("em_field has to be either 'e_field' or 'b_field'", "plotEMField")
+        
+        if em_field.lower() == "b_field" and self.__b_field is None:
+            raise EM_FieldError("No b_field property is specified for the EM_Field instance", "plotEMField")
+        if em_field.lower() == "e_field" and self.__e_field is None:
+            raise EM_FieldError("No e_field property is specified for the EM_Field instance", "plotEMField")
+            
+        f_idx = np.where(self.__f==freq)[0]
+        if f_idx.size == 0:
+            raise EM_FieldError("No EM field is specified for the specified frequency", "plotEMField")
+        else:
+            f_idx = f_idx[0]
+        
+        if not isinstance(ports, list) and not isinstance(ports, np.array):
+            raise EM_FieldError("ports has to be a 1D list or numpy ndarray", "plotEMField")
+        ports = np.sort(np.array(ports) - 1) # -1 since I want to use ports to index the EM field array
+        if len(ports.shape) != 1:
+            raise EM_FieldError("ports has to be a 1D list or numpy ndarray", "plotEMField")
+        for port in ports:
+            if port not in np.arange(self.__nPorts):
+                raise EM_FieldError("No EM field for the specified port", "plotEMField")
+
+        if comp.lower() not in ['b1+', 'b1-']:
+            
+            if em_field.lower() == "b_field":
+                
+                field = self.__b_field[f_idx, ports,:,:]
+                
+                if comp.lower() == "x":
+                    field = 1e6*np.abs(field[:,0,:])
+                elif comp.lower() == 'y':
+                    field = 1e6*np.abs(field[:,1,:])
+                elif comp.lower() == 'z':
+                    field = 1e6*np.abs(field[:,2,:])
+                elif comp.lower() == 'mag':
+                    field = 1e6*np.linalg.norm(field,axis=1)   
+                else:
+                    raise EM_FieldError("comp must take one of the following values: 'mag', 'x', 'y', 'z', 'b1+', 'b1-'", "plotEMField")
+            
+            if em_field.lower() == "e_field":
+                
+                field = self.__e_field[f_idx, ports,:,:]
+                
+                if comp.lower() == "x":
+                    field = np.abs(field[0,:])
+                elif comp.lower() == 'y':
+                    field = np.abs(field[1,:])
+                elif comp.lower() == 'z':
+                    field = np.abs(field[2,:])
+                elif comp.lower() == 'mag':
+                    field = np.linalg.norm(field,axis=1)   
+                else:
+                    raise EM_FieldError("comp must take one of the following values: 'mag', 'x', 'y', 'z'", "plotEMField")
+
+        else:
+            
+            if em_field.lower() == "b_field":
+                field = self.compSensitivities()
+                field = field[f_idx, ports,:,:]
+                
+                if comp.lower() == "b1+":
+                    field = 1e6*np.abs(field[:,0,:])
+                else:
+                    field = 1e6*np.abs(field[:,1,:])
+
+            else:
+                raise EM_FieldError("comp must take one of the following values: 'mag', 'x', 'y', 'z'", "plotEMField")
+            
+        
+        field = field.reshape(np.concatenate( ((ports.size,), self.__nPoints) ), order='F')
+        
+        n_cols = np.int(np.ceil(np.sqrt(ports.size)))
+        n_rows = np.int(np.ceil(ports.size/n_cols))
+        fig, axs = plt.subplots(n_rows,n_cols)
+        axs = np.array(axs).flatten()
+        
+        fig.canvas.set_window_title("%s_%.2f MHz_%s_%d" %(em_field, freq*1e-6, plane, sliceIdx))
+        fig.suptitle("%s, Component: %s, Frequency: %.2f MHz, Index: %d" %(em_field, comp, freq*1e-6, sliceIdx))
+        
+        for i, ax in enumerate(axs):
+            
+            if i < ports.size:
+                ax = axs[i]
+                ax.set_title("Port %d" %(ports[i]+1))
+                
+                if plane.lower() == 'xy' or plane.lower() == 'yx':
+                    im = ax.imshow(field[i,:,:,sliceIdx].T,vmin=vmin,vmax=vmax)
+                    ax.set_xlabel("x")
+                    ax.set_ylabel("y")
+                elif plane.lower() == 'xz' or plane.lower() == 'xz':
+                    im = ax.imshow(field[i,:,sliceIdx,:].T,vmin=vmin,vmax=vmax)
+                    ax.set_xlabel("x")
+                    ax.set_ylabel("z")
+                elif plane.lower() == 'yz' or plane.lower() == 'zy':
+                    im = ax.imshow(field[i,sliceIdx,:,:].T,vmin=vmin,vmax=vmax)
+                    ax.set_xlabel("y")
+                    ax.set_ylabel("z")
+            else:
+                fig.delaxes(ax)
+
+        fig.subplots_adjust(right=0.8)
+        cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+        cbar = fig.colorbar(im, cax=cbar_ax)
+        
+        if em_field.lower() == "b_field":
+            cbar.ax.set_ylabel("B field ($\mu$T)")
+        else:
+            cbar.ax.set_ylabel("E field (V/m)")
+        
+        return fig
+    
+    
     def plotB(self, comp, freq, port, plane, sliceIdx, vmin=None, vmax=None):
         
+        warnings.warn("This method has been replaced by the 'plotEMField' method and will be removed in the future versions of CoSimPy"\
+                      "Please, use the 'plotEMField' with the following options: em_field=%s, ports=[%d]"%("b_field", port))
+
         if self.__b_field is None:
             raise EM_FieldError("No b_field property is specified for the EM_Field instance", "plotB")
             
@@ -334,6 +504,10 @@ class EM_Field():
         
     def plotE(self, comp, freq, port, plane, sliceIdx, vmin=None, vmax=None):
         
+        warnings.warn("This method has been replaced by the 'plotEMField' method and will be removed in the future versions of CoSimPy"\
+              "Please, use the 'plotEMField' with the following options: em_field=%s, ports=[%d]"%("e_field", port))
+
+
         if self.__e_field is None:
             raise EM_FieldError("No e_field property is specified for the EM_Field instance", "plotE")
             
@@ -419,6 +593,8 @@ class EM_Field():
         print("\n\n\nCompiling .xmf file...\n\n")
         
         try:
+            if not filename:
+                raise EM_FieldIOError("Please, provide a correct filename", "exportXMF")
             with open(filename+".xmf", "w") as f:
                 f.write('<?xml version="1.0" ?>\n')
                 f.write('<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>\n')
