@@ -1,22 +1,16 @@
 import numpy as np
 from .S_Matrix import S_Matrix
 from .EM_Field import EM_Field
+from .Exceptions import RF_CoilError, RF_CoilIOError
 import struct
 
 class RF_Coil():
 
+    __FILE_VERSION__ = 2
+    
     def __init__(self, s_matrix, em_field=None):
 
-        if not isinstance(s_matrix, S_Matrix):
-            raise TypeError("s_matrix must be an instance of S_Matrix class")
-        
-        if em_field is not None:
-            if not isinstance(em_field, EM_Field):
-                raise TypeError("em_field must either be None or an instance of EM_Field class")
-            if em_field.nPorts != s_matrix.nPorts:
-                raise ValueError("The S matrix and the em_field are not compatible. There is not a e_field and b_field distribution for each port of the S matrix")
-            if not all(elem in s_matrix.frequencies for elem in em_field.frequencies):
-                raise ValueError("One or more frequencies at which the em_field is computed, differ from the frequencies at which the S matrix is defined")
+        RF_CoilError.check(s_matrix, em_field, "__init__")
         
         self.__s_matrix = s_matrix
         self.__em_field = em_field
@@ -103,16 +97,16 @@ class RF_Coil():
     def duplicatePortsParallel(self, ports, comp_Pinc=True):
         
         if not isinstance(ports,list) and not isinstance(ports,np.ndarray):
-            raise TypeError("ports must be a list or a numpy.ndarray")
+            raise RF_CoilError("ports must be a list or a numpy.ndarray", "duplicatePortsParallel")
         else:
             ports = np.array(ports)
         
         if len(ports) > self.s_matrix.nPorts:
-            raise ValueError("The length of ports cannot be higher than the number of ports of the RF coil")
+            raise RF_CoilError("The length of ports cannot be higher than the number of ports of the RF coil", "duplicatePortsParallel")
         elif (np.logical_or(ports < 1,ports > self.s_matrix.nPorts)).any():
-            raise ValueError("Each ports element identify the number of the port that has to be duplicated. It can take values from 1 to self.s_matrix.nPorts")
+            raise RF_CoilError("Each ports element identify the number of the port that has to be duplicated. It can take values from 1 to self.s_matrix.nPorts", "duplicatePortsParallel")
         elif (np.unique(ports,return_counts=True)[1] > 1).any():
-            raise ValueError("At least one port number is not unique in ports")
+            raise RF_CoilError("At least one port number is not unique in ports", "duplicatePortsParallel")
             
         
         s_matrices = [None]*self.s_matrix.nPorts
@@ -126,16 +120,16 @@ class RF_Coil():
     def duplicatePortsSeries(self, ports, comp_Pinc=True):
         
         if not isinstance(ports,list) and not isinstance(ports,np.ndarray):
-            raise TypeError("ports must be a list or a numpy.ndarray")
+            raise RF_CoilError("ports must be a list or a numpy.ndarray", "duplicatePortsSeries")
         else:
             ports = np.array(ports)
         
         if len(ports) > self.s_matrix.nPorts:
-            raise ValueError("The length of ports cannot be higher than the number of ports of the RF coil")
+            raise RF_CoilError("The length of ports cannot be higher than the number of ports of the RF coil", "duplicatePortsSeries")
         elif (np.logical_or(ports < 1,ports > self.s_matrix.nPorts)).any():
-            raise ValueError("Each ports element identify the number of the port that has to be duplicated. It can take values from 1 to self.s_matrix.nPorts")
+            raise RF_CoilError("Each ports element identify the number of the port that has to be duplicated. It can take values from 1 to self.s_matrix.nPorts", "duplicatePortsSeries")
         elif (np.unique(ports,return_counts=True)[1] > 1).any():
-            raise ValueError("At least one port number is not unique in ports")
+            raise RF_CoilError("At least one port number is not unique in ports", "duplicatePortsSeries")
             
         
         s_matrices = [None]*self.s_matrix.nPorts
@@ -243,225 +237,246 @@ class RF_Coil():
             flat_compArray_imag = np.expand_dims(flat_compArray.imag,axis=1)
             return np.concatenate((flat_compArray_real,flat_compArray_imag),axis=1).flatten()
         
-        file_version = 1
+        file_version = self.__FILE_VERSION__
         header_lines = 9 #Number of header lines excluding the HEADER BEGIN and HEADER END lines
         
-        if filename.split(".")[-1] != "cspy":
-            filename += ".cspy"
+        try:
+            
+            if not filename:
+                raise RF_CoilIOError("Please, provide a correct filename", "saveRFCoil")
+            if filename.split(".")[-1] != "cspy":
+                filename += ".cspy"
+            
+            if description:
+                description = " ".join(description.split("\n"))
+            else:
+                description = "N/D"
+            
+            # Extraction of S_Matrix nested instances (Up to now only level 0 (final S matrix) and 1 (original S matrix) will be present)
+            s_matrix = self.s_matrix
+            s_matrix_instances = [s_matrix]
+            n_ports_list = [s_matrix.nPorts]
+            while s_matrix._S0 is not None:
+                s_matrix = s_matrix._S0
+                s_matrix_instances.append(s_matrix)
+                n_ports_list.append(s_matrix.nPorts)
         
-        if description:
-            description = " ".join(description.split("\n"))
-        else:
-            description = "N/D"
         
-        # Extraction of S_Matrix nested instances (Up to now only level 0 (final S matrix) and 1 (original S matrix) will be present)
-        s_matrix = self.s_matrix
-        s_matrix_instances = [s_matrix]
-        n_ports_list = [s_matrix.nPorts]
-        while s_matrix._S0 is not None:
-            s_matrix = s_matrix._S0
-            s_matrix_instances.append(s_matrix)
-            n_ports_list.append(s_matrix.nPorts)
-        
-        with open(filename, 'wb') as f:
+            with open(filename, 'wb') as f:
             
-            #Saving status
-            print("\nSaving: header...", end='', flush=True)
-            
-            #File version and header lines
-            f.write(struct.pack('<h', file_version))
-            f.write(struct.pack('<h', header_lines))
-            
-            #Header
-            f.write(b"### HEADER BEGIN ###\n")
-            f.write(b"DESCRIP: %s\n"%bytes(description, encoding="utf-8"))
-            f.write(b"S_NFREQ: %d\n"%self.s_matrix.n_f)
-            f.write(b"N_PORTS: %s\n"%(b", ".join(bytes(str(x), encoding="utf-8") for x in n_ports_list)))
-            f.write(b"EMFIELD: %s\n"%(b"TRUE" if self.em_field is not None else b"FALSE"))
-            f.write(b"E_FIELD: %s\n"%(b"TRUE" if (self.em_field is not None and self.em_field.e_field is not None) else b"FALSE"))
-            f.write(b"B_FIELD: %s\n"%(b"TRUE" if (self.em_field is not None and self.em_field.b_field is not None) else b"FALSE"))
-            f.write(b"NPOINTS: %s\n"%(b"N/D" if self.em_field is None else b", ".join(bytes(str(x), encoding="utf-8") for x in self.em_field.nPoints)))
-            f.write(b"EMNFREQ: %s\n"%(b"N/D" if self.em_field is None else bytes(str(self.em_field.n_f), encoding="utf-8")))
-            f.write(b"EM_PROP: %s\n"%(b"N/D" if (self.em_field is None or self.em_field.properties == {}) else b", ".join(bytes(x, encoding="utf-8") for x in self.em_field.properties.keys())))
-            f.write(b"### HEADER END ###\n")
-            
-            #Saving status
-            print("\rSaving: S_Matrix...", end='', flush=True)
-            
-            #s_matrix_frequencies
-            for freq in self.s_matrix.frequencies:
-                f.write(struct.pack('<f',freq))
-            #s_matrix_S
-            for s_matrix_instance in s_matrix_instances:
-                s_matrix_flat = flattenCompArray(s_matrix_instance.S)
-                for s in s_matrix_flat:
-                    f.write(struct.pack('<f', s))
-            #s_matrix_p_incM
-            for s_matrix_instance in s_matrix_instances[1:]:# p_inc is stored only for S matrices with level >1
-                p_inc_flat = s_matrix_instance._p_incM.flatten()
-                for p in p_inc_flat:
-                    f.write(struct.pack('<f', p))
-            #s_matrix_phaseM
-            for s_matrix_instance in s_matrix_instances[1:]:# phaseM is stored only for S matrices with level >1
-                phaseM_flat = s_matrix_instance._phaseM.flatten()
-                for ph in phaseM_flat:
-                    f.write(struct.pack('<f', ph))
-            
-            #em_field
-            if self.em_field is not None:
-            
-                em_field_prop_names = self.em_field.properties.keys()
-                #EM frequencies
-                for freq in self.em_field.frequencies:
-                    f.write(struct.pack('<f', freq))
-                #E field
-                if self.em_field.e_field is not None:
-                    #Saving status
-                    print("\rSaving: EM_Field.e_field...", end='', flush=True)
-                
-                    e_field_flat = flattenCompArray(self.em_field.e_field)
-                    for e in e_field_flat:
-                        f.write(struct.pack('<f', e))
-                #B field
-                if self.em_field.b_field is not None:
-                    #Saving status
-                    print("\rSaving: EM_Field.b_field...", end='', flush=True)
-                    
-                    b_field_flat = flattenCompArray(self.em_field.b_field)
-                    for b in b_field_flat:
-                        f.write(struct.pack('<f', b))
-                # properties
                 #Saving status
-                print("\rSaving: EM_Field.properties...", end='', flush=True)
-                if em_field_prop_names: # At least one key is present
-                    for idx in self.em_field.properties['idxs']:
-                        f.write(struct.pack('<i', idx))
-                    for prop_name in em_field_prop_names:
-                        if prop_name != "idxs":
-                            for pr in self.em_field.properties[prop_name]:
-                                f.write(struct.pack('<f', pr))
+                print("\nSaving: header...", end='', flush=True)
+                
+                #File version and header lines
+                f.write(struct.pack('<h', file_version))
+                f.write(struct.pack('<h', header_lines))
+                
+                #Header
+                f.write(b"### HEADER BEGIN ###\n")
+                f.write(b"DESCRIP: %s\n"%bytes(description, encoding="utf-8"))
+                f.write(b"S_NFREQ: %d\n"%self.s_matrix.n_f)
+                f.write(b"N_PORTS: %s\n"%(b", ".join(bytes(str(x), encoding="utf-8") for x in n_ports_list)))
+                f.write(b"EMFIELD: %s\n"%(b"TRUE" if self.em_field is not None else b"FALSE"))
+                f.write(b"E_FIELD: %s\n"%(b"TRUE" if (self.em_field is not None and self.em_field.e_field is not None) else b"FALSE"))
+                f.write(b"B_FIELD: %s\n"%(b"TRUE" if (self.em_field is not None and self.em_field.b_field is not None) else b"FALSE"))
+                f.write(b"NPOINTS: %s\n"%(b"N/D" if self.em_field is None else b", ".join(bytes(str(x), encoding="utf-8") for x in self.em_field.nPoints)))
+                f.write(b"EMNFREQ: %s\n"%(b"N/D" if self.em_field is None else bytes(str(self.em_field.n_f), encoding="utf-8")))
+                f.write(b"EM_PROP: %s\n"%(b"N/D" if (self.em_field is None or self.em_field.properties == {}) else b", ".join(bytes(x, encoding="utf-8") for x in self.em_field.properties.keys())))
+                f.write(b"### HEADER END ###\n")
+                
+                #Saving status
+                print("\rSaving: S_Matrix...", end='', flush=True)
+                
+                #s_matrix_frequencies
+                for freq in self.s_matrix.frequencies:
+                    f.write(struct.pack('<f',freq))
+                #s_matrix_S
+                for s_matrix_instance in s_matrix_instances:
+                    s_matrix_flat = flattenCompArray(s_matrix_instance.S)
+                    for s in s_matrix_flat:
+                        f.write(struct.pack('<f', s))
+                #s_matrix_p_incM
+                for s_matrix_instance in s_matrix_instances[1:]:# p_inc is stored only for S matrices with level >1
+                    p_inc_flat = s_matrix_instance._p_incM.flatten()
+                    for p in p_inc_flat:
+                        f.write(struct.pack('<f', p))
+                #s_matrix_phaseM
+                for s_matrix_instance in s_matrix_instances[1:]:# phaseM is stored only for S matrices with level >1
+                    phaseM_flat = s_matrix_instance._phaseM.flatten()
+                    for ph in phaseM_flat:
+                        f.write(struct.pack('<f', ph))
+                
+                #em_field
+                if self.em_field is not None:
+                
+                    em_field_prop_names = self.em_field.properties.keys()
+                    #EM frequencies
+                    for freq in self.em_field.frequencies:
+                        f.write(struct.pack('<f', freq))
+                    #E field
+                    if self.em_field.e_field is not None:
+                        #Saving status
+                        print("\rSaving: EM_Field.e_field...", end='', flush=True)
+                    
+                        e_field_flat = flattenCompArray(self.em_field.e_field)
+                        for e in e_field_flat:
+                            f.write(struct.pack('<f', e))
+                    #B field
+                    if self.em_field.b_field is not None:
+                        #Saving status
+                        print("\rSaving: EM_Field.b_field...", end='', flush=True)
+                        
+                        b_field_flat = flattenCompArray(self.em_field.b_field)
+                        for b in b_field_flat:
+                            f.write(struct.pack('<f', b))
+                    # properties
+                    #Saving status
+                    print("\rSaving: EM_Field.properties...", end='', flush=True)
+                    if em_field_prop_names: # At least one key is present
+                        for idx in self.em_field.properties['idxs']:
+                            f.write(struct.pack('<i', idx))
+                        for prop_name in em_field_prop_names:
+                            if prop_name != "idxs":
+                                for pr in self.em_field.properties[prop_name]:
+                                    f.write(struct.pack('<f', pr))
+                
+                print("\nRF coil succesfully saved as %s\n" %filename)
+        
+        except Exception as e:
+            if not isinstance(e, RF_CoilIOError): # I cast as RF_CoilIOError all other errors
+                raise RF_CoilIOError(e.args[-1], "saveRFCoil")
+            else:
+                raise e
             
-            print("\nRF coil succesfully saved as %s\n" %filename)
-
+            
     @classmethod
     def loadRFCoil(cls, filename, **kwarg):
-    
-        with open(filename, 'rb') as f:
-            
-            file_version, = struct.unpack('<h', f.read(2)) #When higher version will be implemented, a check can be performed over this variable
-            header_lines, = struct.unpack('<h', f.read(2))
-            
-            #Loading status
-            print("\nLoading: header...", end='', flush=True)
-            
-            #Reading header
-            header = {}
-            f.readline() #HEADER BEGIN
-            for _ in range(header_lines):
-                line = f.readline().decode('utf-8')
-                line = line.rstrip().split(": ")
-                header[line[0]] = line[1]
-            line = f.readline() #HEADER END
-            
-            #Loading status
-            print("\rLoading: S_Matrix...", end='', flush=True)
-            
-            #s_matrix_frequencies
-            s_frequencies = np.zeros(int(header['S_NFREQ']))
-            for i in range(int(header['S_NFREQ'])):
-                s_frequencies[i] = struct.unpack('<f', f.read(4))[0]
-            #s_matrix
-            n_ports = header['N_PORTS'].split(", ")
-            n_ports = [int(x) for x in n_ports]
-            s_matrices = [] #List containing the S matrices from the last to the original. Up to now, maximum 2
-            for n in n_ports:
-                s_matrix = np.zeros(int(header['S_NFREQ'])*n**2, dtype=np.complex)
-                for i in range(int(header['S_NFREQ'])*n**2):
-                    s_matrix[i] = struct.unpack('<f', f.read(4))[0]
-                    s_matrix[i] += 1j*struct.unpack('<f', f.read(4))[0]
-                s_matrix = s_matrix.reshape([int(header['S_NFREQ']), n, n])
-                s_matrices.append(s_matrix)
-            #s_matrix_p_incM
-            p_incs = [] #List containing the p_incM matrices from the last to the original. Its length will be equal to the s_matrices list length minus 1. Up to now, maximum 1
-            for i in range(len(n_ports)-1):
-                p_inc = np.zeros(int(header['S_NFREQ'])*n_ports[i]*n_ports[i+1], dtype=np.float)
-                for q in range(int(header['S_NFREQ'])*n_ports[i]*n_ports[i+1]):
-                    p_inc[q] = struct.unpack('<f', f.read(4))[0]
-                p_inc = p_inc.reshape([int(header['S_NFREQ']), n_ports[i], n_ports[i+1]])
-                p_incs.append(p_inc)
-            #s_matrix_phaseM
-            phases = [] #List containing the phaseM matrices from the last to the original. Its length will be equal to the s_matrices list length minus 1. Up to now, maximum 1
-            for i in range(len(n_ports)-1):
-                phase = np.zeros(int(header['S_NFREQ'])*n_ports[i]*n_ports[i+1], dtype=np.float)
-                for q in range(int(header['S_NFREQ'])*n_ports[i]*n_ports[i+1]):
-                    phase[q] = struct.unpack('<f', f.read(4))[0]
-                phase = phase.reshape([int(header['S_NFREQ']), n_ports[i], n_ports[i+1]])
-                phases.append(phase)
-            
-            #em_field
-            em_field = None
-            if header["EMFIELD"] == 'TRUE':
-                e_field = None
-                b_field = None
-                n_points = header['NPOINTS'].split(", ")
-                em_points = [int(x) for x in n_points]
-                n_points = np.prod(em_points)
-                em_frequencies = np.zeros([int(header['EMNFREQ'])])
-                for i in range(int(header['EMNFREQ'])):
-                    em_frequencies[i] = struct.unpack('<f', f.read(4))[0]
-                if header["E_FIELD"] == 'TRUE':
-                    #Loading status
-                    print("\rLoading: EM_Field.e_field...", end='', flush=True)
-            
-                    e_field = np.zeros(int(header['EMNFREQ'])*n_ports[0]*3*n_points, dtype=np.complex)
-                    for i in range((int(header['EMNFREQ'])*n_ports[0]*3*n_points)):
-                        e_field[i] = struct.unpack('<f', f.read(4))[0]
-                        e_field[i] += 1j*struct.unpack('<f', f.read(4))[0]
-                    e_field = e_field.reshape([int(header['EMNFREQ']),n_ports[0],3,n_points])
-                if header["B_FIELD"] == 'TRUE':
-                    #Loading status
-                    print("\rLoading: EM_Field.b_field...", end='', flush=True)
-                    
-                    b_field = np.zeros(int(header['EMNFREQ'])*n_ports[0]*3*n_points, dtype=np.complex)
-                    for i in range((int(header['EMNFREQ'])*n_ports[0]*3*n_points)):
-                        b_field[i] = struct.unpack('<f', f.read(4))[0]
-                        b_field[i] += 1j*struct.unpack('<f', f.read(4))[0]
-                    b_field = b_field.reshape([int(header['EMNFREQ']),n_ports[0],3,n_points])
-                em_properties = {}
-                prop_names = header["EM_PROP"].split(", ")
-                if prop_names[0] != 'N/D':
-                    #Loading status
-                    print("\rLoading: EM_Field.properties...", end='', flush=True)
-                    
-                    idxs_property = np.zeros([n_points], dtype=np.int)
-                    for i in range(n_points):
-                            idxs_property[i] = struct.unpack('<i', f.read(4))[0]
-                    em_properties["idxs"] = idxs_property
-                    
-                    for prop_name in prop_names:
-                        if prop_name != "idxs":
-                            em_property = np.zeros([np.max(idxs_property)+1], dtype=np.float)
-                            for i in range(np.max(idxs_property)+1):
-                                em_property[i] = struct.unpack('<f', f.read(4))[0]
-                            em_properties[prop_name] = em_property
+        
+        try:
+            with open(filename, 'rb') as f:
                 
-                #EM_Field instance
-                em_field = EM_Field(em_frequencies, em_points, b_field, e_field, em_properties)
+                file_version, = struct.unpack('<h', f.read(2)) 
+                if file_version != cls.__FILE_VERSION__:
+                    raise RF_CoilError("The file version is not compatible with the present version of CoSimPy (actual version: %d, expected version: %d). Please, load the file with the same CoSimPy version used to create it" %(file_version, cls.__FILE_VERSION__), "loadRFCoil")
+                header_lines, = struct.unpack('<h', f.read(2))
+                
+                #Loading status
+                print("\nLoading: header...", end='', flush=True)
+                
+                #Reading header
+                header = {}
+                f.readline() #HEADER BEGIN
+                for _ in range(header_lines):
+                    line = f.readline().decode('utf-8')
+                    line = line.rstrip().split(": ")
+                    header[line[0]] = line[1]
+                line = f.readline() #HEADER END
+                
+                #Loading status
+                print("\rLoading: S_Matrix...", end='', flush=True)
+                
+                #s_matrix_frequencies
+                s_frequencies = np.zeros(int(header['S_NFREQ']))
+                for i in range(int(header['S_NFREQ'])):
+                    s_frequencies[i] = struct.unpack('<f', f.read(4))[0]
+                #s_matrix
+                n_ports = header['N_PORTS'].split(", ")
+                n_ports = [int(x) for x in n_ports]
+                s_matrices = [] #List containing the S matrices from the last to the original. Up to now, maximum 2
+                for n in n_ports:
+                    s_matrix = np.zeros(int(header['S_NFREQ'])*n**2, dtype=np.complex)
+                    for i in range(int(header['S_NFREQ'])*n**2):
+                        s_matrix[i] = struct.unpack('<f', f.read(4))[0]
+                        s_matrix[i] += 1j*struct.unpack('<f', f.read(4))[0]
+                    s_matrix = s_matrix.reshape([int(header['S_NFREQ']), n, n])
+                    s_matrices.append(s_matrix)
+                #s_matrix_p_incM
+                p_incs = [] #List containing the p_incM matrices from the last to the original. Its length will be equal to the s_matrices list length minus 1. Up to now, maximum 1
+                for i in range(len(n_ports)-1):
+                    p_inc = np.zeros(int(header['S_NFREQ'])*n_ports[i]*n_ports[i+1], dtype=np.float)
+                    for q in range(int(header['S_NFREQ'])*n_ports[i]*n_ports[i+1]):
+                        p_inc[q] = struct.unpack('<f', f.read(4))[0]
+                    p_inc = p_inc.reshape([int(header['S_NFREQ']), n_ports[i], n_ports[i+1]])
+                    p_incs.append(p_inc)
+                #s_matrix_phaseM
+                phases = [] #List containing the phaseM matrices from the last to the original. Its length will be equal to the s_matrices list length minus 1. Up to now, maximum 1
+                for i in range(len(n_ports)-1):
+                    phase = np.zeros(int(header['S_NFREQ'])*n_ports[i]*n_ports[i+1], dtype=np.float)
+                    for q in range(int(header['S_NFREQ'])*n_ports[i]*n_ports[i+1]):
+                        phase[q] = struct.unpack('<f', f.read(4))[0]
+                    phase = phase.reshape([int(header['S_NFREQ']), n_ports[i], n_ports[i+1]])
+                    phases.append(phase)
+                
+                #em_field
+                em_field = None
+                if header["EMFIELD"] == 'TRUE':
+                    e_field = None
+                    b_field = None
+                    n_points = header['NPOINTS'].split(", ")
+                    em_points = [int(x) for x in n_points]
+                    n_points = np.prod(em_points)
+                    em_frequencies = np.zeros([int(header['EMNFREQ'])])
+                    for i in range(int(header['EMNFREQ'])):
+                        em_frequencies[i] = struct.unpack('<f', f.read(4))[0]
+                    if header["E_FIELD"] == 'TRUE':
+                        #Loading status
+                        print("\rLoading: EM_Field.e_field...", end='', flush=True)
+                
+                        e_field = np.zeros(int(header['EMNFREQ'])*n_ports[0]*3*n_points, dtype=np.complex)
+                        for i in range((int(header['EMNFREQ'])*n_ports[0]*3*n_points)):
+                            e_field[i] = struct.unpack('<f', f.read(4))[0]
+                            e_field[i] += 1j*struct.unpack('<f', f.read(4))[0]
+                        e_field = e_field.reshape([int(header['EMNFREQ']),n_ports[0],3,n_points])
+                    if header["B_FIELD"] == 'TRUE':
+                        #Loading status
+                        print("\rLoading: EM_Field.b_field...", end='', flush=True)
+                        
+                        b_field = np.zeros(int(header['EMNFREQ'])*n_ports[0]*3*n_points, dtype=np.complex)
+                        for i in range((int(header['EMNFREQ'])*n_ports[0]*3*n_points)):
+                            b_field[i] = struct.unpack('<f', f.read(4))[0]
+                            b_field[i] += 1j*struct.unpack('<f', f.read(4))[0]
+                        b_field = b_field.reshape([int(header['EMNFREQ']),n_ports[0],3,n_points])
+                    em_properties = {}
+                    prop_names = header["EM_PROP"].split(", ")
+                    if prop_names[0] != 'N/D':
+                        #Loading status
+                        print("\rLoading: EM_Field.properties...", end='', flush=True)
+                        
+                        idxs_property = np.zeros([n_points], dtype=np.int)
+                        for i in range(n_points):
+                                idxs_property[i] = struct.unpack('<i', f.read(4))[0]
+                        em_properties["idxs"] = idxs_property
+                        
+                        for prop_name in prop_names:
+                            if prop_name != "idxs":
+                                em_property = np.zeros([np.max(idxs_property)+1], dtype=np.float)
+                                for i in range(np.max(idxs_property)+1):
+                                    em_property[i] = struct.unpack('<f', f.read(4))[0]
+                                em_properties[prop_name] = em_property
                     
-            #S_Matrix instance
-            s_matrix_in = None
-            for i in range(len(p_incs)):
-                s_matrix = S_Matrix(s_matrices[-1-i], s_frequencies)
-                s_matrix._p_incM = p_incs[-1-i]
-                s_matrix._phaseM = phases[-1-i]
-                s_matrix._S0 = s_matrix_in
-                s_matrix_in = s_matrix
+                    #EM_Field instance
+                    em_field = EM_Field(em_frequencies, em_points, b_field, e_field, em_properties)
+                        
+                #S_Matrix instance
+                s_matrix_in = None
+                for i in range(len(p_incs)):
+                    s_matrix = S_Matrix(s_matrices[-1-i], s_frequencies)
+                    s_matrix._p_incM = p_incs[-1-i]
+                    s_matrix._phaseM = phases[-1-i]
+                    s_matrix._S0 = s_matrix_in
+                    s_matrix_in = s_matrix
+                else:
+                    s_matrix = S_Matrix(s_matrices[0], s_frequencies, **kwarg)
+                    s_matrix._S0 = s_matrix_in
+                
+                #RF_Coil instance
+                
+                rf_coil = cls(s_matrix, em_field)
+                
+                return rf_coil
+            
+        except Exception as e:
+            if not isinstance(e, RF_CoilIOError): # I cast as RF_CoilIOError all other errors
+                raise RF_CoilIOError(e.args[-1], "loadRFCoil")
             else:
-                s_matrix = S_Matrix(s_matrices[0], s_frequencies, **kwarg)
-                s_matrix._S0 = s_matrix_in
-            
-            #RF_Coil instance
-            
-            rf_coil = cls(s_matrix, em_field)
-            
-            return rf_coil
+                raise e
