@@ -153,7 +153,7 @@ pytest -v
 ```
 Different tests can be enabled/disabled through the relevant boolean flags in test_develop.py
 
-Slower test can be skipped adding the --runfast option in the terminal
+Slower tests can be skipped adding the --runfast option in the terminal
 
 ## License
 
