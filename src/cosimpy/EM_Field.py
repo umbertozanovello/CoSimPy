@@ -277,9 +277,9 @@ class EM_Field():
             elCond = self.getProperty(elCond_key)[point_index]
         
         
-        if not isinstance(z0_ports, np.ndarray) and not isinstance(z0_ports, list) and not isinstance(z0_ports, np.int) and not isinstance(z0_ports, np.float):
+        if not isinstance(z0_ports, np.ndarray) and not isinstance(z0_ports, list) and not isinstance(z0_ports, int) and not isinstance(z0_ports, float):
             raise EM_FieldError("z0_ports must be a self.nPorts real value elements list or numpy ndarray or single scalar value", "compQMatrix")
-        elif isinstance(z0_ports, np.int) or isinstance(z0_ports, np.float):
+        elif isinstance(z0_ports, int) or isinstance(z0_ports, float):
             z0_ports = np.ones(self.__nPorts) * np.abs(z0_ports.real)
         elif len(z0_ports) != self.__nPorts:
             raise EM_FieldError("z0_ports must be a self.nPorts real value elements list or numpy ndarray or single scalar value", "compQMatrix")
@@ -400,8 +400,8 @@ class EM_Field():
         
         field = field.reshape(np.concatenate( ((ports.size,), self.__nPoints) ), order='F')
         
-        n_cols = np.int(np.ceil(np.sqrt(ports.size)))
-        n_rows = np.int(np.ceil(ports.size/n_cols))
+        n_cols = int(np.ceil(np.sqrt(ports.size)))
+        n_rows = int(np.ceil(ports.size/n_cols))
         fig, axs = plt.subplots(n_rows,n_cols)
         axs = np.array(axs).flatten()
         
@@ -870,7 +870,7 @@ class EM_Field():
             if imp_bfield:
                 b_field = b_multCoeff * np.sqrt(1/Pinc_ref) * rmsCoeff * b_field #cst exported field values are peak values
             
-            freqs = 1e6*np.array(freqs).astype(np.float)
+            freqs = 1e6*np.array(freqs).astype(float)
             
             return cls(freqs, nPoints, b_field, e_field, props)
         

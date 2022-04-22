@@ -384,7 +384,7 @@ class RF_Coil():
                 n_ports = [int(x) for x in n_ports]
                 s_matrices = [] #List containing the S matrices from the last to the original. Up to now, maximum 2
                 for n in n_ports:
-                    s_matrix = np.zeros(int(header['S_NFREQ'])*n**2, dtype=np.complex)
+                    s_matrix = np.zeros(int(header['S_NFREQ'])*n**2, dtype=complex)
                     for i in range(int(header['S_NFREQ'])*n**2):
                         s_matrix[i] = struct.unpack('<f', f.read(4))[0]
                         s_matrix[i] += 1j*struct.unpack('<f', f.read(4))[0]
@@ -393,7 +393,7 @@ class RF_Coil():
                 #s_matrix_p_incM
                 p_incs = [] #List containing the p_incM matrices from the last to the original. Its length will be equal to the s_matrices list length minus 1. Up to now, maximum 1
                 for i in range(len(n_ports)-1):
-                    p_inc = np.zeros(int(header['S_NFREQ'])*n_ports[i]*n_ports[i+1], dtype=np.float)
+                    p_inc = np.zeros(int(header['S_NFREQ'])*n_ports[i]*n_ports[i+1], dtype=float)
                     for q in range(int(header['S_NFREQ'])*n_ports[i]*n_ports[i+1]):
                         p_inc[q] = struct.unpack('<f', f.read(4))[0]
                     p_inc = p_inc.reshape([int(header['S_NFREQ']), n_ports[i], n_ports[i+1]])
@@ -401,7 +401,7 @@ class RF_Coil():
                 #s_matrix_phaseM
                 phases = [] #List containing the phaseM matrices from the last to the original. Its length will be equal to the s_matrices list length minus 1. Up to now, maximum 1
                 for i in range(len(n_ports)-1):
-                    phase = np.zeros(int(header['S_NFREQ'])*n_ports[i]*n_ports[i+1], dtype=np.float)
+                    phase = np.zeros(int(header['S_NFREQ'])*n_ports[i]*n_ports[i+1], dtype=float)
                     for q in range(int(header['S_NFREQ'])*n_ports[i]*n_ports[i+1]):
                         phase[q] = struct.unpack('<f', f.read(4))[0]
                     phase = phase.reshape([int(header['S_NFREQ']), n_ports[i], n_ports[i+1]])
@@ -422,7 +422,7 @@ class RF_Coil():
                         #Loading status
                         print("\rLoading: EM_Field.e_field...", end='', flush=True)
                 
-                        e_field = np.zeros(int(header['EMNFREQ'])*n_ports[0]*3*n_points, dtype=np.complex)
+                        e_field = np.zeros(int(header['EMNFREQ'])*n_ports[0]*3*n_points, dtype=complex)
                         for i in range((int(header['EMNFREQ'])*n_ports[0]*3*n_points)):
                             e_field[i] = struct.unpack('<f', f.read(4))[0]
                             e_field[i] += 1j*struct.unpack('<f', f.read(4))[0]
@@ -431,7 +431,7 @@ class RF_Coil():
                         #Loading status
                         print("\rLoading: EM_Field.b_field...", end='', flush=True)
                         
-                        b_field = np.zeros(int(header['EMNFREQ'])*n_ports[0]*3*n_points, dtype=np.complex)
+                        b_field = np.zeros(int(header['EMNFREQ'])*n_ports[0]*3*n_points, dtype=complex)
                         for i in range((int(header['EMNFREQ'])*n_ports[0]*3*n_points)):
                             b_field[i] = struct.unpack('<f', f.read(4))[0]
                             b_field[i] += 1j*struct.unpack('<f', f.read(4))[0]
@@ -442,14 +442,14 @@ class RF_Coil():
                         #Loading status
                         print("\rLoading: EM_Field.properties...", end='', flush=True)
                         
-                        idxs_property = np.zeros([n_points], dtype=np.int)
+                        idxs_property = np.zeros([n_points], dtype=int)
                         for i in range(n_points):
                                 idxs_property[i] = struct.unpack('<i', f.read(4))[0]
                         em_properties["idxs"] = idxs_property
                         
                         for prop_name in prop_names:
                             if prop_name != "idxs":
-                                em_property = np.zeros([np.max(idxs_property)+1], dtype=np.float)
+                                em_property = np.zeros([np.max(idxs_property)+1], dtype=float)
                                 for i in range(np.max(idxs_property)+1):
                                     em_property[i] = struct.unpack('<f', f.read(4))[0]
                                 em_properties[prop_name] = em_property

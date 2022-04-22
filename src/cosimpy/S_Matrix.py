@@ -222,7 +222,7 @@ class S_Matrix():
                     y = spl(x)
                 
                 #if y = 0 I set -330 dB
-                dB_values = -330 * np.ones_like(y, dtype=np.float) #-330 selected on the basis of 20*np.log10(np.finfo(float).eps)
+                dB_values = -330 * np.ones_like(y, dtype=float) #-330 selected on the basis of 20*np.log10(np.finfo(float).eps)
                 dB_values[y!=0] = 20*np.log10(np.abs(y[y!=0]))
 
                 if self.__n_f == 1:
@@ -280,8 +280,8 @@ class S_Matrix():
         else:
             interpOrder = 3
         
-        n_cols = np.int(np.ceil(np.sqrt(self.__nPorts)))
-        n_rows = np.int(np.ceil(self.__nPorts/n_cols))
+        n_cols = int(np.ceil(np.sqrt(self.__nPorts)))
+        n_rows = int(np.ceil(self.__nPorts/n_cols))
         fig, axs = plt.subplots(n_rows,n_cols)
         axs = axs.flatten()
         
@@ -311,7 +311,7 @@ class S_Matrix():
                         s_param = spl(x)
                     
                     #if s_param = 0 I set -330 dB
-                    dB_values = -330 * np.ones_like(s_param, dtype=np.float) #-330 selected on the basis of 20*np.log10(np.finfo(float).eps)
+                    dB_values = -330 * np.ones_like(s_param, dtype=float) #-330 selected on the basis of 20*np.log10(np.finfo(float).eps)
                     dB_values[s_param!=0] = 20*np.log10(np.abs(s_param[s_param!=0]))
                     
                     paramLabel = "S%d-%d"%(ref_port+1, col + 1)
@@ -592,7 +592,7 @@ class S_Matrix():
                 # frequencies = np.expand_dims(frequencies,axis=-1)
                 param_flat = param_array.reshape([self.__n_f,-1]) #[[S11, S12, ..., S1n, S21, S22, ...],...]
                 
-                data = np.zeros([self.__n_f, 1+2*(self.__nPorts**2)], dtype=np.float)
+                data = np.zeros([self.__n_f, 1+2*(self.__nPorts**2)], dtype=float)
                 data[:,0] = frequencies
                 data[:,1::2] = np.real(param_flat)
                 data[:,2::2] = np.imag(param_flat)
@@ -681,7 +681,7 @@ class S_Matrix():
             raise S_MatrixConnectionError("The returned S_Matrix has to result at least into a 1 port S_Matrix", "_singlePortConnSMatrix")
         
         #The s matrix that will be used as other by the __resSMatrix method
-        s_forComp = np.zeros((self.__n_f, input_ports+output_ports, input_ports+output_ports), dtype='complex')
+        s_forComp = np.zeros((self.__n_f, input_ports+output_ports, input_ports+output_ports), dtype=complex)
         
         out_idx = 0
         for in_idx, network in enumerate(networks):
@@ -854,7 +854,7 @@ class S_Matrix():
 
         nP = port_pairs.shape[0]
         
-        s_load = np.zeros((self.__n_f,2*self.__nPorts-2*nP,2*self.__nPorts-2*nP),dtype='complex')
+        s_load = np.zeros((self.__n_f,2*self.__nPorts-2*nP,2*self.__nPorts-2*nP),dtype=complex)
         
         circ_row = np.zeros((self.__n_f, 2*self.__nPorts-2*nP))
         circ_row[:, self.__nPorts] = 1
@@ -1150,7 +1150,7 @@ class S_Matrix():
                     fmt = s
                     check += 1
                 elif s.upper()  == 'R':
-                    ref = np.float(option_string.split()[-1])
+                    ref = float(option_string.split()[-1])
                     check += 1
             if check != 4:
                 warnings.warn("Not all the expected options were present or correctly decoded. The following are used: %s %s %s R %s\nPlease, check your data" %(freqUnit, param, fmt, ref))
@@ -1219,17 +1219,17 @@ class S_Matrix():
             
             data = np.delete(data,np.arange(0,np.size(data),n_ports**2*2+1)) #Data without frequency values
             
-            parameters_A = data[::2].astype(np.float)
-            parameters_B = data[1::2].astype(np.float)
+            parameters_A = data[::2].astype(float)
+            parameters_B = data[1::2].astype(float)
 
             if options["frequency_unit"].upper() == 'HZ':
-                frequencies = frequencies.astype(np.float)
+                frequencies = frequencies.astype(float)
             elif options["frequency_unit"].upper() == 'KHZ':
-                frequencies = 1e3*frequencies.astype(np.float)
+                frequencies = 1e3*frequencies.astype(float)
             elif options["frequency_unit"].upper() == 'MHZ':
-                frequencies = 1e6*frequencies.astype(np.float)
+                frequencies = 1e6*frequencies.astype(float)
             elif options["frequency_unit"].upper() == 'GHZ':
-                frequencies = 1e9*frequencies.astype(np.float)
+                frequencies = 1e9*frequencies.astype(float)
                 
             if options["format"].upper() == 'RI':
                 parameters = parameters_A + 1j*parameters_B
