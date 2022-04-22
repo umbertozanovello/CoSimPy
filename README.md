@@ -130,12 +130,21 @@ rf_coil_line_matched.s_matrix.plotS(["S1-1"])
 ## Test
 
 For testing the library, [pytest](https://docs.pytest.org/en/6.2.x/) is required.<br>
-After installing CoSimPy, download the "test" folder and, from a terminal execute:
+After installing CoSimPy, download the "test" folder and, from a terminal, execute:
 ```
 cd path_to_test_folder/test
 pytest -v
 ```
 Different tests can be enabled/disabled through the relevant boolean flags in test_develop.py
+
+Slower tests can be skipped adding the --runfast option in the terminal
+
+To test the library under different Operating Systems and/or Python versions, [tox](https://tox.wiki/en/latest/) can be exploited. Just download the whole CoSimPy distribution and, from a terminal, execute:
+```
+cd cosimpy_folder
+tox -vr
+```
+where cosimpy_folder is the folder containing the tox.ini file
 
 ## License
 
