@@ -155,6 +155,14 @@ Different tests can be enabled/disabled through the relevant boolean flags in te
 
 Slower tests can be skipped adding the --runfast option in the terminal
 
+To test the library under different Operating Systems and/or Python versions, [tox](https://tox.wiki/en/latest/) can be exploited. Just download the whole CoSimPy distribution and, from a terminal, execute:
+```
+cd cosimpy_folder
+tox -vr
+```
+where cosimpy_folder is the folder containing the tox.ini file
+
+
 ## License
 
 This project is licensed under the MIT
