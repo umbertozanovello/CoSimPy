@@ -342,7 +342,7 @@ class EM_Field():
         else:
             f_idx = f_idx[0]
         
-        if not isinstance(ports, list) and not isinstance(ports, np.array):
+        if not isinstance(ports, list) and not isinstance(ports, np.ndarray):
             raise EM_FieldError("ports has to be a 1D list or numpy ndarray", "plotEMField")
         ports = np.sort(np.array(ports) - 1) # -1 since I want to use ports to index the EM field array
         if len(ports.shape) != 1:
