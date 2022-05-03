@@ -444,7 +444,7 @@ class EM_Field():
     def plotB(self, comp, freq, port, plane, sliceIdx, vmin=None, vmax=None):
         
         warnings.warn("This method has been replaced by the 'plotEMField' method and will be removed in the future versions of CoSimPy"\
-                      "Please, use the 'plotEMField' with the following options: em_field=%s, ports=[%d]"%("b_field", port))
+                      "Please, use the 'plotEMField' with the following options: em_field=%s, ports=[%d]"%("b_field", port), DeprecationWarning)
 
         if self.__b_field is None:
             raise EM_FieldError("No b_field property is specified for the EM_Field instance", "plotB")
@@ -505,7 +505,7 @@ class EM_Field():
     def plotE(self, comp, freq, port, plane, sliceIdx, vmin=None, vmax=None):
         
         warnings.warn("This method has been replaced by the 'plotEMField' method and will be removed in the future versions of CoSimPy"\
-              "Please, use the 'plotEMField' with the following options: em_field=%s, ports=[%d]"%("e_field", port))
+              "Please, use the 'plotEMField' with the following options: em_field=%s, ports=[%d]"%("e_field", port), DeprecationWarning)
 
 
         if self.__e_field is None:

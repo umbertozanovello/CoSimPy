@@ -49,7 +49,7 @@ class S_MatrixArrayError(S_MatrixError):
         if S.shape[1] != S.shape[2]:
              raise cls("S can only be an Nf x Np x Np numpy ndarray", callingMethod)
         if (np.round(np.abs(S),6) > 1).any():
-            warnings.warn("An S parameter higher than one has been found. Results could be unphysical at least at one frequency value. Healing the S matrix with the healSMatrix method could solve the problem")
+            warnings.warn("An S parameter higher than one has been found. Results could be unphysical at least at one frequency value. Healing the S matrix with the healSMatrix method could solve the problem", stacklevel=2)
             if info_warnings:
                 print("\nMax |S_ij|:\n")
                 print(np.max(np.abs(S)))
@@ -58,7 +58,7 @@ class S_MatrixArrayError(S_MatrixError):
         p = np.eye(S.shape[1]) - S @ np.conjugate(np.transpose(S,axes=[0,2,1]))
         not_nan_idxs = np.where(np.logical_not(np.isnan(p).any(axis=(1,2))))[0] #idx of new_P first dimension where no nan values along the other two dimensions are encountered
         if (np.round(np.real(np.linalg.eigvals(p[not_nan_idxs])),6) < 0).any():
-            warnings.warn("The S matrix seems to be unphysical at least at one frequency value. Healing the S matrix with the healSMatrix method could solve the problem")
+            warnings.warn("The S matrix seems to be unphysical at least at one frequency value. Healing the S matrix with the healSMatrix method could solve the problem", stacklevel=2)
             if info_warnings:
                 print("\nEigenvalues of II - S^H @ S:\n")
                 print(np.real(np.linalg.eigvals(np.eye(S.shape[1]) - S @ np.conjugate(np.transpose(S,axes=[0,2,1])))))
@@ -101,7 +101,7 @@ class S_MatrixPortImpedancesError(S_MatrixError):
         if (np.array(np.real(z0)) <= 0).any():
             raise cls("The real part of all the port impedances has to be higher than zero", callingMethod)
         if not np.array_equal(np.array(np.real(z0)), np.array(z0)):
-            warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected")
+            warnings.warn("The present version of the library can only handle real port impedances. The imaginary parts will be neglected", stacklevel=2)
             
             
 class S_MatrixTouchstoneFileError(S_MatrixError):
