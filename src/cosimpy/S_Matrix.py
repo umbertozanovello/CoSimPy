@@ -75,7 +75,7 @@ class S_Matrix():
         string += "|V-| = |S||V+|\n|%d x 1| = |%d x %d||%d x 1|\n\nNumber of frequency values = %d\n\n"%(self.__nPorts,self.__nPorts,self.__nPorts,self.__nPorts, self.__n_f)
         
         if self._S0 is not None:
-            string += "The S matrix is the result of previous connections and/or manipulations with a %d ports S0 matrix\n\n"%self._S0.__nPorts
+            string += "The S matrix is the result of previous connections and/or manipulations with a %d-port S0 matrix\n\n"%self._S0.__nPorts
         return string
     
     
