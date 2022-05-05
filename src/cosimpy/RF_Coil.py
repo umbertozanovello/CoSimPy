@@ -162,7 +162,7 @@ class RF_Coil():
         
         else:
                 
-            idxs = np.where(self.s_matrix.frequencies[:,None]==self.em_field.frequencies)[0]
+            idxs = np.where(np.equal(self.s_matrix.frequencies[:,None],self.em_field.frequencies))[0]
             
             depPow = self.em_field.compDepPow(voxVols, elCond_key, p_inc)
             
@@ -173,7 +173,7 @@ class RF_Coil():
             elif len(pows) == 2:
                 powBal["P_refl"] = tot_p_inc - pows[0][idxs]
                 powBal["P_dep"] = depPow
-                powBal["P_circ_loss"] = pows[0] - pows[1]
+                powBal["P_circ_loss"] = pows[0][idxs] - pows[1][idxs]
                 powBal["P_other"] = tot_p_inc - powBal["P_refl"] - powBal["P_circ_loss"] - powBal["P_dep"] 
             
             frequencies = self.s_matrix.frequencies[idxs]
