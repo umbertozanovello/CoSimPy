@@ -97,7 +97,7 @@ class EM_Field():
     
     def __repr__(self):
         string = '"""""""""""""""\n   EM FIELD\n"""""""""""""""\n\n'
-        string += "Number of frequency values = %d\nNumber of ports = %d\nNumber of point (nx, ny, nz) = %d, %d, %d\n\n"%(self.__n_f,self.__nPorts, self.__nPoints[0], self.__nPoints[1],self.__nPoints[2])
+        string += "Number of frequency values = %d\nNumber of ports = %d\nNumber of points (nx, ny, nz) = %d, %d, %d\n\n"%(self.__n_f,self.__nPorts, self.__nPoints[0], self.__nPoints[1],self.__nPoints[2])
         if self.e_field is None:
                 string += "E field not defined\n\n"
         elif self.b_field is None:

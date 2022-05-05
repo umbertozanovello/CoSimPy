@@ -1122,7 +1122,7 @@ Out:
 
     Number of frequency values = 10
     Number of ports = 5
-    Number of point (nx, ny, nz) = 3, 4, 5
+    Number of points (nx, ny, nz) = 3, 4, 5
 
     E field not defined
 
