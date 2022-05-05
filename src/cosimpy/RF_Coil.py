@@ -34,7 +34,7 @@ class RF_Coil():
     
     def __repr__(self):
         
-        string = '       """""""""""""""\n           RF COIL\n       """""""""""""""\n\n\n\n'
+        string = '       """""""""""""""\n           RF COIL\n       """""""""""""""\n\n\n'
         string+= '"""""""""""""""\n   S MATRIX\n"""""""""""""""\n\n'
         string += "|V-| = |S||V+|\n|%d x 1| = |%d x %d||%d x 1|\n\nNumber of frequency values = %d\n\n"%(self.s_matrix.nPorts,self.s_matrix.nPorts,self.s_matrix.nPorts,self.s_matrix.nPorts, self.s_matrix.n_f)
         string+= '"""""""""""""""\n   EM FIELD\n"""""""""""""""\n\n'
