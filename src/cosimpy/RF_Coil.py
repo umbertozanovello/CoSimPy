@@ -48,7 +48,7 @@ class RF_Coil():
             string += 'Not defined\n\n'
             
         if self.__s_matrix._S0 is not None:
-            string += "The RF coil is the result of previous connections and/or manipulations with a %d ports original RF coil\n\n"%self.__s_matrix._S0.nPorts
+            string += "\nThe RF coil is the result of previous connections and/or manipulations with a %d ports original RF coil\n\n"%self.__s_matrix._S0.nPorts
         return string
         
         
