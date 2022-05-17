@@ -12,7 +12,7 @@ import tempfile
 import pytest
 
 # For running without packaging. In python console type pytest.main(["optional_cmd_options"])
-packaging = False # Set to False to run tests in the developement stage
+packaging = True # Set to False to run tests in the developement stage
 
 if packaging:
     from cosimpy import *
