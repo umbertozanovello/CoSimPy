@@ -46,7 +46,9 @@ After installation, the library can be imported as:
 import cosimpy
 ```
 
-### An Example
+### Examples
+
+**A basic example**
 
 In the following example, a 1-port RF coil is modeled as a 5 ohm resistance in series with a 300 nH inductance. The RF coil is supposed to generate a 0.1 &mu;T magnetic flux density oriented along the y-direction when it is supplied with 1 W incident power at 128 MHz. The coil is connected to a tuning/matching network through a 5 cm long lossless transmission line. The network is designed to transform the impedance at its output to 50 ohm at 128 MHz. 
 
@@ -126,6 +128,10 @@ Out:
 rf_coil_line_matched.s_matrix.plotS(["S1-1"])
 ```
 ![](./docs/images/example_S.png)
+
+**Demonstartion with Jupitere Notebook**
+
+In the "CoSimPy-Demo.ipynb" script inside the ["examples"](./examples) folder, some of the CoSimPy feature are shown with reference to the case study considered [here](https://www.sciencedirect.com/science/article/pii/S0169260722000694).
 
 ## Test
 
