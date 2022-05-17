@@ -6,24 +6,24 @@ filename: News&Versions.md
 
 # News
 
-The new version of CoSimPy will be released shortly. It will come along with many new methods and improvements:
+Version 1.4.0 of CoSimPy is now available! It comes along with many new methods and improvements:
 - The way the additional properties are managed in the EM_Field class has been substantially changed. From the user side, this will affect the following methods:
   * `EM_Field.compPowDens`;
   * `EM_Field.compDepPow`;
   * `RF_Coil.powerBalance`;
   * `RF_Coil.saveRFCoil`: The RF_Coil instance is saved with a new file version;
-  * `RF_Coil.loadRFCoil`: It will not be possible to load the RF_Coil instances saved with a previous version of CoSimPy.
-- New methods will be available:
-  * A `compQMatrix` method will be available for the EM_Field class;
-  * A  `__getitem__` method will be available for the EM_Field class;
-  * A  `addProperty` method will be available for the EM_Field class;
-  * A  `getProperty` method will be available for the EM_Field class;
-  * A  `maskEMField` method will be available for the EM_Field class;
-  * A  `plotEMField` method will be available for the EM_Field class. This method will replace the old `plotB` and `plotE` methods.
-  * A  `plotProperty` method will be available for the EM_Field class.
-- A `nPorts` property will be added to the RF_Coil class;
-- The `__getitem__` method of the S_Matrix class will be improved;
-- Personalised exceptions will be implemented to provide the user with a clearer feedback in case of errors.
+  * `RF_Coil.loadRFCoil`: It is not be possible to load the RF_Coil instances saved with a previous version of CoSimPy.
+- New methods are available:
+  * A `compQMatrix` method is available for the EM_Field class;
+  * A  `__getitem__` method is available for the EM_Field class;
+  * A  `addProperty` method is available for the EM_Field class;
+  * A  `getProperty` method is available for the EM_Field class;
+  * A  `maskEMField` method is available for the EM_Field class;
+  * A  `plotEMField` method is available for the EM_Field class. This method replaces the old `plotB` and `plotE` methods which will be removed in the next vesions of CoSimPy.
+  * A  `plotProperty` method is available for the EM_Field class.
+- A `nPorts` property is added to the RF_Coil class;
+- The `__getitem__` method of the S_Matrix class is improved;
+- Personalised exceptions are implemented to provide the user with a clearer feedback in case of errors.
 
 ___
 
