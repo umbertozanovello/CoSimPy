@@ -125,13 +125,14 @@ Out:
     7.825e-07
 '''
 
+#Print the S11 parameter
 rf_coil_line_matched.s_matrix.plotS(["S1-1"])
 ```
 ![](./docs/images/example_S.png)
 
 **CoSimPy demonstration**
 
-In the "CoSimPy-Demo.ipynb" script inside the ["examples/cosimpy_demonstration"](./examples/cosimpy_demonstration) folder, some of the CoSimPy feature are shown with reference to the case study considered [here](https://www.sciencedirect.com/science/article/pii/S0169260722000694).
+In the "CoSimPy-Demo.ipynb" script inside the "examples/cosimpy_demonstration" folder, some of the CoSimPy feature are shown with reference to the case study considered [here](https://www.sciencedirect.com/science/article/pii/S0169260722000694).
 
 ## Test
 
