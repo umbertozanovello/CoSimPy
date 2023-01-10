@@ -295,6 +295,213 @@ class EM_Field():
         return q_matrix
 
     
+    def compVOP(self, freq, u_max_r, z0_ports=50, elCond_key=None, avg_rad=1):
+        """
+        Implementation of the code suggested in the paper:
+        Local Specific Absorption Rate Control for Parallel Transmission by Virtual Observation Points
+        (10.1002/mrm.22927)
+        
+        u_max_r : float
+            allowed maximum overestimation of the VOPs with respect to the maximum eigenvalue of the Q matrices of the model (e.g. 0.05 means that the overestimation will be the 5 % of the maximum eigenvalue)
+        """
+        def volume_average(omega_mat, avg_rad, nPoints):
+            """
+            
+            Parameters
+            ----------
+            omega_mat : n_points x n_port x n_port numpy ndarray
+                n_set of matrices ordered as Fortran (first index faster)
+            avg_rad : float
+                the ratio between the radius of the averaging sphere and the voxel dimension
+            nPoints : 3-element list
+                the voxels along each Cartesian direction (prod(nPoints) = n_points)
+
+            Returns
+            -------
+            avg_omega_mat : n_points x n_port x n_port numpy ndarray
+                the Omega matrices averaged inside the given sphere
+            """
+           
+            omega_mat = omega_mat.reshape(list(nPoints)+list(omega_mat.shape[1:]), order='F')
+            avg_omega_mat = np.full_like(omega_mat, np.nan)
+            index = 0
+            x = np.arange(nPoints[0])
+            y = np.arange(nPoints[1])
+            z = np.arange(nPoints[2])
+            
+            X, Y, Z = np.meshgrid(x,y,z)
+            dist = np.sqrt(X**2 + Y**2 + Z**2)
+            
+            mask = (dist <= avg_rad)
+            print("\nAveraging:\n")
+            for k in np.arange(nPoints[2]):
+                print("\rPercentage: %d %%" %(k/nPoints[2]*100), end='')
+                if k >= avg_rad:
+                    k_idxs = slice(k-avg_rad, k+avg_rad)
+                else:
+                    k_idxs = slice(0, k+avg_rad)
+                for j in np.arange(nPoints[1]):
+                    if j >= avg_rad:
+                        j_idxs = slice(j-avg_rad, j+avg_rad)
+                    else:
+                        j_idxs = slice(0, j+avg_rad)
+                    for i in np.arange(nPoints[0]):
+                        if i >= avg_rad:
+                            i_idxs = slice(i-avg_rad, i+avg_rad)
+                        else:
+                            i_idxs = slice(0, i+avg_rad)
+                        mask_red = mask[i_idxs, j_idxs, k_idxs]
+                        if not np.isnan(omega_mat[i,j,k]).all():
+                            avg_omega_mat[i,j,k] = np.nanmean(omega_mat[i_idxs, j_idxs, k_idxs][mask_red], axis=0)
+                        index += 1
+                        mask = np.roll(mask,1,0)
+                    mask = np.roll(mask,1,1)
+                mask = np.roll(mask,1,2)
+                
+            return avg_omega_mat.reshape([-1,omega_mat.shape[-2],omega_mat.shape[-1]], order='F')
+        
+        def findMatrixA(B_ask, sorted_Omega_mat, u_max):
+            """
+
+            Parameters
+            ----------
+            B_ask : n_port x n_port numpy ndarray
+                B* of the reference paper: The matrix of the whole set Omega of the cluster iteration 
+                with the highest spectral norm
+            sorted_Omega_mat : n_set x n_port x n_port numpy ndarray
+                n_set matrices of the Omega set relevant to the cluster iteration and sorted accoridng lambda_min(B*-B) (step 2 of reference paper)
+            u_max : float
+                the maximum spectral norm of Z* before a new cluster investigation should be performed
+
+            Returns
+            -------
+            A : n_port x n_port numpy ndarray representing the matrix A that dominates all the matrices in the cluster
+            
+            cluster_last_index : index of Omega_mat representing the first matrix that cannot be added to the cluster since
+                                 it would entail ||Z*||>u
+
+            """
+
+            Z_ask = np.zeros_like(B_ask)
+            i = 0
+            u = 0
+            while u <= u_max and i < sorted_Omega_mat.shape[0]:
+                eig_vals, eig_vec = np.linalg.eigh(B_ask - sorted_Omega_mat[i])
+                eig_vals[eig_vals>0] = 0
+                eig_vals = -1 * eig_vals
+                Q_m = eig_vec @ np.diag(eig_vals) @ eig_vec.conj().T
+                Z_ask_temp = Z_ask + Q_m
+                u = np.linalg.eigh(Z_ask_temp)[0][-1]
+                if u <= u_max:
+                    Z_ask = Z_ask_temp
+                    i +=1
+                    
+            return B_ask+Z_ask, i
+
+        def sortOmega_mat(unsorted_Omega_mat):
+            """
+
+            Parameters
+            ----------
+            unsorted_Omega_mat : n_set x n_port x n_port numpy ndarray
+                n_set matrices of the Omega set relevant to the cluster iteration still unsorted
+
+            Returns
+            -------
+            B_ask : n_port x n_port numpy ndarray
+                B* of the reference paper: The matrix of the whole set Omega of the cluster iteration 
+                with the highest spectral norm
+            
+            sorted_Omega_mat : n_set x n_port x n_port numpy ndarray
+               the unsorted_Omega_mat matrices sorted according lambda_min(B*-B) (step 2 of reference paper)
+            
+            sort_indices : n_set numpy ndarray
+                if i=sort_indices[n], sorted_Omega_mat[n] = unsorted_Omega_mat[i]
+            """
+            
+            max_eigvals = np.linalg.eigvalsh(unsorted_Omega_mat)[:,-1] # The array of maximum eigenvalues of the matrices in unsorted_Omega_mat
+            B_ask = unsorted_Omega_mat[np.argmax(max_eigvals)]
+                
+            serv_mats = B_ask[None,...] - unsorted_Omega_mat
+            min_serv_eigvals = np.linalg.eigvalsh(serv_mats)[:,0] # The array of minimum eigenvalues of the matrices in unsorted_Omega_mat
+            sort_indices = np.argsort(min_serv_eigvals)[::-1]
+            sorted_Omega_mat = unsorted_Omega_mat[sort_indices]
+            
+            return B_ask, sorted_Omega_mat, sort_indices
+        
+        
+        if self.__e_field is None:
+            raise EM_FieldError("No e field property is specified for the EM_Field instance. Power density cannot be computed", "compQMatrix")
+
+        f_idx = np.where(self.__f==freq)[0]
+        if f_idx.size == 0:
+            raise EM_FieldFrequenciesError("No E field for the specified frequency", "compVOP")
+        else:
+            f_idx = f_idx[0]
+             
+        if elCond_key is not None and not isinstance(elCond_key, str):
+            raise EM_FieldError("elCond_key has to be None or a string relevant to the key of the electrical conductivity in the properties dictionary", "compQMatrix")
+        if elCond_key is None: #No electrical conductivity is passed as argument and a relevant property is not present
+            elCond = np.ones(np.prod(self.nPoints))
+        else:
+            elCond = self.getProperty(elCond_key)
+            
+        if not isinstance(z0_ports, np.ndarray) and not isinstance(z0_ports, list) and not isinstance(z0_ports, int) and not isinstance(z0_ports, float):
+            raise EM_FieldError("z0_ports must be a self.nPorts real value elements list or numpy ndarray or single scalar value", "compQMatrix")
+        elif isinstance(z0_ports, int) or isinstance(z0_ports, float):
+            z0_ports = np.ones(self.__nPorts) * np.abs(z0_ports.real)
+        elif len(z0_ports) != self.__nPorts:
+            raise EM_FieldError("z0_ports must be a self.nPorts real value elements list or numpy ndarray or single scalar value", "compQMatrix")
+        else:
+            z0_ports = np.abs(np.array(z0_ports).real)
+             
+        e_field = np.copy(self.e_field[f_idx,...])
+        e_field /= np.sqrt(z0_ports[:,None, None]) # e_field_pnt is referred to 1 Volt incident voltage in relevant ports
+            
+        q_mats = np.einsum("nkj,mkj->jnm", e_field, e_field.conj())
+        q_mats *= elCond[:,None, None]
+        
+        if avg_rad != 1:
+            q_mats = volume_average(q_mats, avg_rad, self.nPoints)
+        
+        u_max = np.nanmax(np.linalg.eigvalsh(q_mats)[:,-1]) * u_max_r
+        
+        clustered_points = 0 # Number of clustered points
+        n_cluster = 0 # Number of identified clusters
+        A_mats = np.empty([0,q_mats.shape[1], q_mats.shape[2]])
+        cluster_array  = np.full(q_mats.shape[0], np.nan)
+        
+        not_nan_indices = np.any(np.logical_not(np.isnan(q_mats)),axis=(1,2))
+        sorted_Omega_mat = q_mats[not_nan_indices]
+        not_nan_cluster_array = np.zeros(sorted_Omega_mat.shape[0], dtype=int)
+        
+        sort_indices_orig = np.arange(q_mats.shape[0]) # Indices of the sorted Omega matrices with respect to the element of the original_Omega_mat
+        last_index_k0 = 0 # Index of the first matrix not clustered in the previous iteration
+        
+        print("\n\nClusterisation:\n")
+        while clustered_points < q_mats[not_nan_indices].shape[0]:
+            print("\rCluster n. %d" %n_cluster, end='')
+            
+            B_ask, sorted_Omega_mat, sort_indices = sortOmega_mat(sorted_Omega_mat[last_index_k0:])
+            
+            sort_indices_orig = sort_indices_orig[last_index_k0:][sort_indices]
+            
+            A, last_index_k1 = findMatrixA(B_ask, sorted_Omega_mat, u_max)
+            
+            A_mats = np.append(A_mats, A[None,...],axis=0)
+            
+            not_nan_cluster_array[sort_indices_orig[:last_index_k1]] = n_cluster
+            clustered_points += last_index_k1
+            n_cluster += 1
+            last_index_k0= last_index_k1
+
+        cluster_array[not_nan_indices] = not_nan_cluster_array
+        
+        print("\n\n%d total clusters identified" %n_cluster)
+        
+        return A_mats, cluster_array
+    
+    
     def plotProperty(self, prop_key, plane, sliceIdx, vmin=None, vmax=None):
         
         prop = self.getProperty(prop_key) # All the checks are perfomed in this method
