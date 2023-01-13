@@ -12,13 +12,13 @@ import tempfile
 import pytest
 
 # For running without packaging. In python console type pytest.main(["optional_cmd_options"])
-packaging = True # Set to False to run tests in the developement stage
+packaging = False # Set to False to run tests in the developement stage
 
 if packaging:
     from cosimpy import *
 else:
     COSIMPY_DIR = os.path.dirname(os.path.abspath(__file__)).split("/")
-    COSIMPY_DIR = '/'.join(COSIMPY_DIR[:-1]) + "/src"
+    COSIMPY_DIR = '/'.join(COSIMPY_DIR[:-1])# + "/src"
     sys.path.append(COSIMPY_DIR)
     from src.cosimpy.S_Matrix import *
     from src.cosimpy.EM_Field import *
@@ -36,6 +36,7 @@ test9 = True
 test10 = True
 test11 = True
 test12 = True
+test13 = True
 
 testE1 = True
 testE2 = True
@@ -510,6 +511,44 @@ if test12:
         
         assert(np.isnan(em_field.e_field[:,:,:,2:6]).all())
         assert(np.isnan(em_field.b_field[:,:,:,2:6]).all())
+
+if test13:
+    @pytest.mark.slow
+    def test13():
+        """
+        TEST 13: Check EM_Field compVOP
+        """
+        
+        e1 = np.random.rand(3,8,3,1) + 1j*np.random.rand(3,8,3,1)
+        e2 = np.random.rand(3,8,3,1) + 1j*np.random.rand(3,8,3,1)
+        e3 = np.random.rand(3,8,3,1) + 1j*np.random.rand(3,8,3,1)
+        e4 = np.random.rand(3,8,3,1) + 1j*np.random.rand(3,8,3,1)
+        e5 = np.random.rand(3,8,3,1) + 1j*np.random.rand(3,8,3,1)
+        
+        nPoints = [100,100,20]
+        e_field = np.concatenate((np.full((3,8,3,np.prod(nPoints)//5),e1),\
+                                  np.full((3,8,3,np.prod(nPoints)//5),e2),\
+                                      np.full((3,8,3,np.prod(nPoints)//5),e3),\
+                                          np.full((3,8,3,np.prod(nPoints)//5),e4),\
+                                              np.full((3,8,3,np.prod(nPoints)//5),e5)), axis=-1)
+        
+        frequencies = np.array([120e6,123e6,128e6])
+        
+        em_field = EM_Field(frequencies,nPoints, e_field = e_field)
+
+        A_mats, cluster_array = em_field.compVOP(128e6, 0.05, elCond_key=None, avg_rad=1)
+        
+        q1 = 1/50 * e1[2,:,:,0] @ e1[2,:,:,0].conj().T
+        q2 = 1/50 * e2[2,:,:,0] @ e2[2,:,:,0].conj().T
+        q3 = 1/50 * e3[2,:,:,0] @ e3[2,:,:,0].conj().T
+        q4 = 1/50 * e4[2,:,:,0] @ e4[2,:,:,0].conj().T
+        q5 = 1/50 * e5[2,:,:,0] @ e5[2,:,:,0].conj().T
+        
+        exp_Amats = np.concatenate([q1[None,...],q2[None,...],q3[None,...],q4[None,...],q5[None,...]], axis=0)
+        exp_Amats = exp_Amats[np.argsort(np.linalg.eigvalsh(exp_Amats)[:,-1])]
+        
+        assert((np.arange(5)==np.unique(cluster_array)).all())
+        assert(np.isclose(exp_Amats, A_mats[np.argsort(np.linalg.eigvalsh(A_mats)[:,-1])]).all())
         
 if testE1:
     @pytest.mark.parametrize("s_input, f_input, z0_input",\

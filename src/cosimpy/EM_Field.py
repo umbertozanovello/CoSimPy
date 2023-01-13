@@ -459,6 +459,7 @@ class EM_Field():
         e_field /= np.sqrt(z0_ports[:,None, None]) # e_field_pnt is referred to 1 Volt incident voltage in relevant ports
             
         q_mats = np.einsum("nkj,mkj->jnm", e_field, e_field.conj())
+        
         q_mats *= elCond[:,None, None]
         
         if avg_rad != 1:

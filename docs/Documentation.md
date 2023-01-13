@@ -1325,13 +1325,39 @@ three element *list* or *numpy ndarray* used to specify the spatial position whe
 frequency value at which the Q matrix is evaluated. The value has to be included in the `self.frequencies` array
 * z0_ports *list*, *numpy ndarray*, *int*, *float*, *optional* <br>
 port impedances in ohm. These can be given as a *list* or *numpy ndarray* with length equal to the number of ports of the device. If all the ports share the same impedances, a *float* or *int* value can be passed as parameter. The format is compatible with that of the *S_Matrix* property `z0`. Default is 50 ohm
-* elCond_key : *string*<br>
+* elCond_key : *string*, *optional*<br>
 *string* of the key in the `self.properties` dictionary associated with the electrical conductivity. If `None`, the Q matrix is reported for unit conductivity. Default is `None`
 
 Returns
 
 * q_matrix : *numpy ndarray* <br>
 N<sub>P</sub> 🞩 N<sub>P</sub> *numpy ndarray*, being N<sub>P</sub> the number of ports of the device, representative of the Q matrix computed in the specified point. If the "elCond" argument is `None` and no "elCond" property is found among the **kwargs of the class, the Q matrix is relevant to 1 S/m electrical conductivity
+
+
+#### `compVOP(self, freq, u_max_r, z0_ports=50, elCond_key=None, avg_rad=1)`
+
+If the electric field is defined, the method computes the Virtual Observation Points according to the procedure proposed in the paper "Eichfelder G, Gebhardt M. Local specific absorption rate control for parallel transmission by virtual observation points. Magn Reson Med. 2011 Nov;66(5):1468-76. doi: 10.1002/mrm.22927" 
+
+Parameters
+
+* self : *EM_Field*
+* freq : *int*, *float* <br>
+frequency value at which the Q matrix is evaluated. The value has to be included in the `self.frequencies` array
+* u_max_r : *float* <br>
+the ratio between the maximum allowed overestimation of the SAR using the VOP with respect to the actual highest SAR in the domain obtained for the worst supply combination
+* z0_ports *list*, *numpy ndarray*, *int*, *float*, *optional* <br>
+port impedances in ohm. These can be given as a *list* or *numpy ndarray* with length equal to the number of ports of the device. If all the ports share the same impedances, a *float* or *int* value can be passed as parameter. The format is compatible with that of the *S_Matrix* property `z0`. Default is 50 ohm
+* elCond_key : *string*, *optional*<br>
+*string* of the key in the `self.properties` dictionary associated with the electrical conductivity. If `None`, the VOP matrices are reported for unit conductivity. Default is `None`
+* avg_rad : *int*, *float*, *optional* <br>
+if higher than 1, it performs a spherical average before computing the VOPs. Each voxel is therefore associated with a SAR matrix which is the average of the SAR matrices of the sorrounding voxels enclosed by a sphere centered on the first voxel. *avg_rad* defines the length of the radius of the sphere in number of voxels. Default is 1
+
+Returns
+
+* A_mats : *numpy ndarray* <br>
+N<sub>cl</sub> 🞩 N<sub>P</sub> 🞩 N<sub>P</sub> *numpy ndarray*, being N<sub>cl</sub> the number of identified clusters and N<sub>P</sub> the number of ports of the RF coil.
+* cluster_array : *numpy ndarray* <br>
+1D N<sub>pnt</sub> array where N<sub>pnt</sub> is the number of points (voxels) in which the electric field has been defined. The values in the array follow a fortran-like index ordering (first index changing faster) considering a Cartesian coordinate system. `cluster_array[i] ` represents the cluster number (from 0) of the i-th voxel
 
 
 #### `plotProperty(self, prop_key, plane, sliceIdx, vmin=None, vmax=None)`
