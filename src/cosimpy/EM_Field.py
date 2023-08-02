@@ -1026,8 +1026,8 @@ class EM_Field():
                                 raise EM_FieldIOError("At least one of e_field files is not compatible with the evaluated or passed nPoints", "importFields_cst")
                             e_field[idx_f, port, :, :] = (e_real+1j*e_imag).T
                         if imp_bfield:
-                            b_real = np.loadtxt(directory+"/bfield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=(3,4,5))
-                            b_imag = np.loadtxt(directory+"/bfield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=(6,7,8))
+                            b_real = np.loadtxt(directory+"/bfield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=re_cols)
+                            b_imag = np.loadtxt(directory+"/bfield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=im_cols)
                             if b_real.shape[0] != n:
                                 raise EM_FieldIOError("At least one of b_field files is not compatible with the evaluated or passed nPoints", "importFields_cst")
                             b_field[idx_f, port, :, :] = (b_real+1j*b_imag).T
