@@ -305,7 +305,7 @@ class EM_Field():
         prop = prop.reshape(self.__nPoints, order='F')
         
         fig, ax = plt.subplots(1,1)
-        fig.canvas.set_window_title("%s_%s_%d" %(prop_key, plane, sliceIdx))
+        fig.canvas.manager.set_window_title("%s_%s_%d" %(prop_key, plane, sliceIdx))
         fig.suptitle("%s, Index: %d" %(prop_key, sliceIdx))
         
         if plane.lower() == 'xy' or  plane.lower() == 'yz':
@@ -405,7 +405,7 @@ class EM_Field():
         fig, axs = plt.subplots(n_rows,n_cols)
         axs = np.array(axs).flatten()
         
-        fig.canvas.set_window_title("%s_%.2f MHz_%s_%d" %(em_field, freq*1e-6, plane, sliceIdx))
+        fig.canvas.manager.set_window_title("%s_%.2f MHz_%s_%d" %(em_field, freq*1e-6, plane, sliceIdx))
         fig.suptitle("%s, Component: %s, Frequency: %.2f MHz, Index: %d" %(em_field, comp, freq*1e-6, sliceIdx))
         
         for i, ax in enumerate(axs):
