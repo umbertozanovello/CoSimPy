@@ -181,7 +181,7 @@ class S_Matrix():
         return self._singlePortConnSMatrix(networks, comp_Pinc=False)[0]
     
     
-    def plotS(self, parameters, dB=True, smooth=True):
+    def plotS(self, parameters, dB=True, smooth=False):
         
         if not isinstance(parameters,list) and not isinstance(parameters, np.ndarray):
             raise S_MatrixError("Parameters should be list or numpy array", "plotS")
@@ -266,7 +266,7 @@ class S_Matrix():
             return fig
     
     
-    def plotSPanel(self, num_nn, smooth=True):
+    def plotSPanel(self, num_nn, smooth=False):
         
         if num_nn >= self.__nPorts:
             raise S_MatrixError("The number of nearest neighbours to be plotted cannot be higher than self.nPorts-1", "plotSPanel")
