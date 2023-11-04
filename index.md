@@ -31,7 +31,7 @@ The library has been developed with Python 3.7. and tested on previous versions 
 The library uses the following additional packages:
 
 - [numpy](https://numpy.org/) (>=1.15.2)
-- [matplotlib](https://matplotlib.org/) (>=3.0.0)
+- [matplotlib](https://matplotlib.org/) (>=3.4.0)
 - [h5py](https://www.h5py.org/) (>=2.8.0)
 - [scipy](https://www.scipy.org/) (>=1.1.0)
 
