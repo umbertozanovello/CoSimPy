@@ -273,7 +273,7 @@ Out:
 '''
 ```
 
-#### `plotS(self, parameters, dB=True, smooth=True)`
+#### `plotS(self, parameters, dB=True, smooth=False)`
 
 The method is used to plot the scattering parameters as a function of the frequency values over which they are defined.
 
@@ -285,7 +285,7 @@ Parameters
 * dB : *bool*, *optional* <br>
 if `True`, the scattering parameters are plotted in Decibel. Otherwise, they are plotted as magnitude and phase. Default is `True`
 * smooth : *bool*, *optional* <br>
-if `True`, the scattering parameters are interpolated along their frequency range to produce smoother plots. Default is `True`
+if `True`, the scattering parameters are interpolated along their frequency range to produce smoother plots. Default is `False`
 
 Returns
 
@@ -307,7 +307,7 @@ S_Mat = S_Matrix(np.random.uniform(size=(n_f,n_p,n_p)), frequencies)
 fig = S_Mat.plotS(["S1-1, S1-2, S3-2"])
 ```
 
-#### `plotSPanel(self, num_nn, smooth=True)`
+#### `plotSPanel(self, num_nn, smooth=False)`
 
 The method is used to plot the scattering parameters in dB as a function of the frequency values over which they are defined in a multi-panel figure. Each panel il relevant to a S<sub>n,n</sub> parameter with n from one to the number of ports of `self`.
 
@@ -317,7 +317,7 @@ Parameters
 * num_nn : *int* <br>
 numbers of nearest neighbours to be plotted in each panel. For each port N, in each figure panel will be plotted the S parameters from S<sub>N,N-num_nn</sub> to S<sub>N,N+num_nn</sub>
 * smooth : *bool*, *optional* <br>
-if `True`, the scattering parameters are interpolated along their frequency range to produce smoother plots. Default is `True`
+if `True`, the scattering parameters are interpolated along their frequency range to produce smoother plots. Default is `False`
 
 Returns
 
