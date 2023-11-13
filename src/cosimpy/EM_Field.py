@@ -1162,3 +1162,101 @@ class EM_Field():
                 raise EM_FieldIOError(e.args[-1], "importFields_s4l")
             else:
                 raise e
+            
+    @classmethod
+    def importFields_hfss(cls, directory, freqs, nPorts, nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, col_ascii_order = 0, props={}):
+
+        if not imp_efield and not imp_bfield:
+            raise EM_FieldIOError("At least one among imp_efield and imp_bfield has to be True")
+        if nPoints is not None: 
+            EM_FieldPointsError.check(nPoints, "importFields_hfss")
+        if not isinstance(nPorts, int) or nPorts < 1:
+            raise  EM_FieldIOError("nPorts has to be an integer higher than zero")
+        if pkORrms.lower() not in ["pk", "rms"]:
+            raise  EM_FieldIOError("pkORrms can only be 'pk or 'rms'")
+        if col_ascii_order not in [0, 1]:
+            raise  EM_FieldIOError("col_ascii_order can take 0 (Re_x, Re_y, Re_z, Im_x, Im_y, Im_z) or 1 (Re_x, Im_x, Re_y, Im_y, Re_z, Im_z) values")
+        
+        try:
+            
+            if nPoints is None: #I try to evaluate nPoints
+                
+                if imp_efield:
+                    x,y,z = np.loadtxt(directory+"/efield_%s_port1.fld"%(freqs[0]), skiprows=2, unpack=True, usecols=(0,1,2))
+                else:
+                    x,y,z = np.loadtxt(directory+"/bfield_%s_port1.fld"%(freqs[0]), skiprows=2, unpack=True, usecols=(0,1,2))
+                
+                orig_len = len(x) #Total number of points
+                
+                x = np.unique(x)
+                y = np.unique(y)
+                z = np.unique(z)
+                
+                nPoints = [len(x), len(y), len(z)]
+                
+                if np.prod(nPoints) != orig_len:
+                    raise EM_FieldIOError("nPoints evaluation failed. Please specify its value in the method argument", "importFields_cst")
+    
+            n = np.prod(nPoints)
+            
+            if imp_efield:
+                e_field = np.empty((len(freqs),nPorts,3,n), dtype="complex")
+            else:
+                e_field = None
+            if imp_bfield:
+                b_field = np.empty((len(freqs),nPorts,3,n), dtype="complex")
+            else:
+                b_field = None
+            
+            if pkORrms.lower() == "pk":
+                rmsCoeff = 1/np.sqrt(2)
+            else:
+                rmsCoeff = 1 
+        
+        
+            for idx_f, f in enumerate(freqs):
+                print("Importing %s MHz fields\n"%f)
+    
+                for port in range(nPorts):
+                    print("\r\tImporting port%d fields"%(port+1), end='', flush=True)
+                    if col_ascii_order == 0:
+                        re_cols = (3,4,5)
+                        im_cols = (6,7,8)
+                    elif col_ascii_order == 1:
+                        re_cols = (3,5,7)
+                        im_cols = (4,6,8)
+                    if imp_efield:
+                        e_real = np.loadtxt(directory+"/efield_%s_port%d.fld"%(f,port+1), skiprows=2, usecols=re_cols)
+                        e_imag = np.loadtxt(directory+"/efield_%s_port%d.fld"%(f,port+1), skiprows=2, usecols=im_cols)
+                        if e_real.shape[0] != n:
+                            raise EM_FieldIOError("At least one of e_field files is not compatible with the evaluated or passed nPoints", "importFields_hfss")
+                        e_field[idx_f, port, :, :] = (e_real+1j*e_imag).T
+                    if imp_bfield:
+                        b_real = np.loadtxt(directory+"/bfield_%s_port%d.fld"%(f,port+1), skiprows=2, usecols=re_cols)
+                        b_imag = np.loadtxt(directory+"/bfield_%s_port%d.fld"%(f,port+1), skiprows=2, usecols=im_cols)
+                        if b_real.shape[0] != n:
+                            raise EM_FieldIOError("At least one of b_field files is not compatible with the evaluated or passed nPoints", "importFields_hfss")
+                        b_field[idx_f, port, :, :] = (b_real+1j*b_imag).T
+                
+                print("\n")
+            
+            if imp_efield:
+                e_field = e_field.reshape(tuple(e_field.shape[:-1])+tuple(nPoints))
+                e_field = e_field.swapaxes(-3,-1)
+                e_field = e_field.reshape(tuple(e_field.shape[:3])+tuple([-1]), order='C')
+                e_field = np.sqrt(1/Pinc_ref) * rmsCoeff * e_field
+            if imp_bfield:
+                b_field = b_field.reshape(tuple(b_field.shape[:-1])+tuple(nPoints), order='C')
+                b_field = b_field.swapaxes(-3,-1)
+                b_field = b_field.reshape(tuple(b_field.shape[:3])+tuple([-1]), order='C')
+                b_field = b_multCoeff * np.sqrt(1/Pinc_ref) * rmsCoeff * b_field
+            
+            freqs = 1e6*np.array(freqs).astype(float)
+            
+            return cls(freqs, nPoints, b_field, e_field, props)
+        
+        except Exception as e:
+            if not isinstance(e, EM_FieldIOError): # I cast as EM_FieldIOError all other errors
+                raise EM_FieldIOError(e.args[-1], "importFields_hfss")
+            else:
+                raise e

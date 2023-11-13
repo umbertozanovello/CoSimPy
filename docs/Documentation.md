@@ -1071,7 +1071,7 @@ number of ports associated with the electric and magnetic flux density fields (N
 
 ### Methods
 
-#### `__init__(self, freqs, nPoints, b_field=None, e_field=None, **kwargs)`
+#### `__init__(self, freqs, nPoints, b_field=None, e_field=None, props={})`
 
 It creates an *EM_Field* instance. At least one among b_field and e_field must be different from `None`
 
@@ -1543,7 +1543,7 @@ Returns
 * EM_Field : *EM_Field* <br>
 *EM_Field* defined over the same frequency values of `self` *EM_Field*. The returned *EM_Field* is characterised by N<sub>Pout</sub> different distributions of EM fields corresponding to the number of rows of `p_incM` and `phaseM` method parameters
 
-#### `importFields_cst(directory, freqs, nPorts, nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, fileType = 'ascii', col_ascii_order = 0, **kwargs)`
+#### `importFields_cst(directory, freqs, nPorts, nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, fileType = 'ascii', col_ascii_order = 0, props={})`
 
 class method which returns an *EM_Field* instance importing the data from [CST<sup>®</sup> STUDIO SUITE](https://www.3ds.com/products-services/simulia/products/cst-studio-suite/) standard ASCII of HDF5 export files.<br>
 Results files must be collected in a dedicated directory and named as <field_str\>_<freq_str\>_port<n\>.txt where <field_str\> can be either 'efield', for the electric field result, or 'bfield' for magnetic flux density field results, <freq_str\> is a string identifying the frequency value in megahertz (e.g. '128.4') and <n\> is the number of the port supplied, in the simulation environment, to generate the relevant EM fields. All the EM quantities must be exported on the same regular grid.
@@ -1575,15 +1575,16 @@ if `True` the method imports the results relevant to the magnetic flux density f
 if 0: |x, y, z, <EM\>xRe, <EM\>yRe, <EM\>zRe, <EM\>xIm, <EM\>yIm, <EM\>zIm|<br>
 if 1: |x, y, z, <EM\>xRe, <EM\>xIm, <EM\>yRe, <EM\>yIm, <EM\>zRe, <EM\>zIm|<br>
 If fileType = "hdf5" this argument is not considered. Default is 0
-* **kwargs : *list*, *numpy ndarray*, *optional* <br>
-additional properties defined over the same N<sub>N</sub> spatial points over which the electric and magnetic flux density fields are defined. They can be *list* or *numpy ndarray* with a length equal to N<sub>N</sub>
+* props : *dictionary*, *optional* <br>
+additional properties defined over the same N<sub>N</sub> spatial points over which the electric and magnetic flux density fields are defined. For further details see `EM_Field.__init__` method.<br>
+Default is *{}*
 
 Returns
 
 * EM_Field : *EM_Field* <br>
-*EM_Field* obtained from the EM results exported from CST<sup>®</sup> STUDIO SUITE. `EM_Field.properties` is a dictionary based on the `**kwargs`parameters passed to the method
+*EM_Field* obtained from the EM results exported from CST<sup>®</sup> STUDIO SUITE. `EM_Field.properties` is a dictionary based on the `props` parameter passed to the method
 
-#### `importFields_s4l(directory, freqs, nPorts, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, **kwargs)`
+#### `importFields_s4l(directory, freqs, nPorts, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, props={})`
 
 class method which returns an *EM_Field* instance importing the data from [Sim4Life](https://zmt.swiss/sim4life/) standard export .mat files. Results files must be collected in a dedicated directory and named as <field_str/>_port<n/>.mat where <field_str/> can be either 'efield', for the electric field results, or 'bfield' for magnetic flux density field results and <n/> is the number of the ports supplied, in the simulation environment, to generate the relevant EM field. All the EM quantities must be exported on the same regular grid.
 
@@ -1607,14 +1608,53 @@ if 'pk' the values contained in the result files are interpreted as peak values,
 if `True` the method imports the results relevant to the electric field. Default is `True`
 * imp_bfield : *bool*, *optional* <br>
 if `True` the method imports the results relevant to the magnetic flux density field. Default is `True`
-* **kwargs : *list*, *numpy ndarray*, *optional* <br>
-additional properties defined over the same N<sub>N</sub> spatial points over which the electric and magnetic flux density fields are defined. They can be *list* or *numpy ndarray* with a length equal to N<sub>N</sub>
+* props : *dictionary*, *optional* <br>
+additional properties defined over the same N<sub>N</sub> spatial points over which the electric and magnetic flux density fields are defined. For further details see `EM_Field.__init__` method.<br>
+Default is *{}*
 
 Returns
 
 * EM_Field : *EM_Field* <br>
-*EM_Field* obtained from the EM results exported from Sim4Life. `EM_Field.properties` is a dictionary based on the `**kwargs` parameters passed to the method
+*EM_Field* obtained from the EM results exported from Sim4Life. `EM_Field.properties` is a dictionary based on the `props` parameter passed to the method
 
+#### `importFields_hfss(directory, freqs, nPorts, nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, col_ascii_order = 0, props={})`
+
+class method which returns an *EM_Field* instance importing the data from [Ansys HFSS<sup>®</sup> ](https://www.ansys.com/products/electronics/ansys-hfss) standard ASCII .fld files.<br>
+Results files must be collected in a dedicated directory and named as <field_str\>_<freq_str\>_port<n\>.fld where <field_str\> can be either 'efield', for the electric field result, or 'bfield' for magnetic flux density field results, <freq_str\> is a string identifying the frequency value in megahertz (e.g. '128.4') and <n\> is the number of the port supplied, in the simulation environment, to generate the relevant EM fields. All the EM quantities must be exported on the same regular grid.
+
+Parameters
+
+* directory : *string* <br>
+*string* reporting the path of the directory which contains the text files
+* freqs : *list*, *numpy ndarray* <br>
+*list* or *numpy ndarray* of *string* values reporting the frequency values as they are indicated in the results filenames (<freq_str\>)
+* nPorts : *int* <br>
+number of ports for which the results are available
+* nPoints : *list*, *numpy ndarray*, *optional* <br>
+*list* or *numpy ndarray* with a length equal to three reporting the number of spatial points over which the electric and magnetic flux density fields are defined: [N<sub>x</sub>, N<sub>y</sub>, N<sub>z</sub>]. If `None` (default value) the method deduces them from the result files at the expenses of a slight longer import process
+* Pinc_ref : *float*, *optional* <br>
+magnitude of the power incident at the ports which generate the EM fields.  Default is 1 W.
+* b_multCoeff : *float*, *optional* <br>
+multiplicative factor for the magnetic results. In case the exported results are magnetic field values (A/m), it has to be equal to 4&pi;10<sup>-7</sup> to obtain magnetic flux density values in tesla. Default is 1
+* pkORrms : *string*, *optional* <br>
+if 'pk' the values contained in the result files are interpreted as peak values, if 'rms' they are interpreted as rms values. Default is 'pk'
+* imp_efield : *bool*, *optional* <br>
+if `True` the method imports the results relevant to the electric field. Default is `True`
+* imp_bfield : *bool*, *optional* <br>
+if `True` the method imports the results relevant to the magnetic flux density field. Default default is "ascii"
+* col_ascii_order : *int*, *optional* <br>
+*int* identifying the column order in the ascii files.<br>
+if 0: |x, y, z, <EM\>xRe, <EM\>yRe, <EM\>zRe, <EM\>xIm, <EM\>yIm, <EM\>zIm|<br>
+if 1: |x, y, z, <EM\>xRe, <EM\>xIm, <EM\>yRe, <EM\>yIm, <EM\>zRe, <EM\>zIm|<br>
+Default is 0
+* props : *dictionary*, *optional* <br>
+additional properties defined over the same N<sub>N</sub> spatial points over which the electric and magnetic flux density fields are defined. For further details see `EM_Field.__init__` method.<br>
+Default is *{}*
+
+Returns
+
+* EM_Field : *EM_Field* <br>
+*EM_Field* obtained from the EM results exported from Ansys HFSS<sup>®</sup>. `EM_Field.properties` is a dictionary based on the `props`parameter passed to the method
 ___
 ## RF_Coil class
 This class represents the link between the *S_Matrix* and *EM_Field* classes. An instance of this class represents the simulated device being, its properties, an *S_Matrix* and an *EM_Field* instance. The *S_Matrix* must be defined over all the frequency values at which the *EM_Field* is defined.
