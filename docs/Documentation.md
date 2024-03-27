@@ -1586,7 +1586,7 @@ Returns
 
 #### `importFields_s4l(directory, freqs, nPorts, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, props={})`
 
-class method which returns an *EM_Field* instance importing the data from [Sim4Life](https://zmt.swiss/sim4life/) standard export .mat files. Results files must be collected in a dedicated directory and named as <field_str/>_port<n/>.mat where <field_str/> can be either 'efield', for the electric field results, or 'bfield' for magnetic flux density field results and <n/> is the number of the ports supplied, in the simulation environment, to generate the relevant EM field. All the EM quantities must be exported on the same regular grid.
+class method which returns an *EM_Field* instance importing the data from [Sim4Life](https://zmt.swiss/sim4life/) standard export .mat files. Results files must be collected in a dedicated directory and named as <field_str>_port\<n>.mat where <field_str> can be either 'efield', for the electric field results, or 'bfield' for magnetic flux density field results and \<n> is the number of the ports supplied, in the simulation environment, to generate the relevant EM field. All the EM quantities must be exported on the same regular grid.
 
 Parameters
 

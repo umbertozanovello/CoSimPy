@@ -4,6 +4,9 @@ import h5py
 from scipy.io import loadmat
 import warnings
 from copy import copy
+import re
+from os import listdir
+from os.path import isfile, join
 from .Exceptions import EM_FieldError, EM_FieldArrayError, EM_FieldFrequenciesError, EM_FieldPointsError,\
     EM_FieldIOError, EM_FieldPropertiesError
 
@@ -1195,7 +1198,7 @@ class EM_Field():
                 nPoints = [len(x), len(y), len(z)]
                 
                 if np.prod(nPoints) != orig_len:
-                    raise EM_FieldIOError("nPoints evaluation failed. Please specify its value in the method argument", "importFields_cst")
+                    raise EM_FieldIOError("nPoints evaluation failed. Please specify its value in the method argument", "importFields_hfss")
     
             n = np.prod(nPoints)
             
@@ -1260,3 +1263,70 @@ class EM_Field():
                 raise EM_FieldIOError(e.args[-1], "importFields_hfss")
             else:
                 raise e
+            
+    @classmethod
+    def readPortFreqsFromFilenames(cls, directory, referenceString):
+        # Preliminary info about the reference string
+
+        # TODO check if referenceString is ok e.g., <f> and <p> should be separated by at least a character which isn't a number
+
+        pattern=re.compile("<p>")
+        span_p = pattern.search(referenceString)
+        # TODO check if span_p is not None otherwise raise error relevant to referenceString
+        span_p = span_p.span()
+        
+        pattern=re.compile("<f>")
+        span_f = pattern.search(referenceString)
+        # TODO check if span_f is not None otherwise raise error relevant to referenceString
+        span_f = span_f.span()
+
+        if span_f[0] < span_p[0]:
+            fp_order = 0 # First the frequency and then the port number
+        else:
+            fp_order = 1 # First the port number and then the frequency
+
+
+        # Recover number of ports and frequency values
+
+        a_candidates = []
+        b_candidates = []
+        decStrings = re.split("<f>|<p>", referenceString) # e.g., ["bField_," "MHz_Port", ".t"]
+        reg = re.compile(r'(%s)\d+(.\d+)*(%s)\d+(.\d+)*'%(decStrings[0], decStrings[1])) # e.g., reg = re.compile(r'(bField_)\d+(.\d)*(MHz_Port)\d+(.\d)*')
+        for fileDirName in listdir(directory):
+            if isfile(join(directory,fileDirName)):
+                match = reg.match(fileDirName)
+                if  match is not None: # True if the filename has the format specified by the referenceString
+                    a_candidates.append(fileDirName[match.span(1)[1]:match.span(3)[0]]) # From the end of the first group of match to the start of the third group of match 
+                    b_candidates.append(fileDirName[match.span(3)[1]:match.span(0)[1]]) # From the end of the third group of match to the end of the last element of match 
+
+        if not a_candidates or not b_candidates:
+            # TODO No file matches the referenceString
+            print(0)
+
+        if fp_order == 0:
+            freq_string_candidates = np.array(a_candidates)
+            freq_candidates = np.array([float(i) for i in (freq_string_candidates)])
+            port_candidates = np.array([int(i) for i in (b_candidates)])
+        else:
+            port_candidates = np.array([int(i) for i in (a_candidates)])
+            freq_string_candidates = np.array(b_candidates)
+            freq_candidates = np.array([float(i) for i in (freq_string_candidates)])
+
+        freqs, freq_idxs = np.unique(freq_candidates, return_index=True)
+        n_ports = np.max(port_candidates)
+
+
+        #  Print Result
+
+        print(f"\nN° detected frequency values: {freqs.size}\nN° detected ports: {n_ports}\n") 
+
+
+        # Create filenames to be loaded
+
+        filenames = np.empty((freqs.size,n_ports),dtype=object)
+
+        for i,f in enumerate(freq_string_candidates[freq_idxs]):
+            for p in range(n_ports):
+                filenames[i,p] = join(directory,referenceString.replace("<f>",f).replace("<p>",str(p+1)))
+
+        return freqs, n_ports, filenames
