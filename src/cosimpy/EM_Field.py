@@ -1167,27 +1167,38 @@ class EM_Field():
                 raise e
             
     @classmethod
-    def importFields_hfss(cls, directory, freqs, nPorts, nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, col_ascii_order = 0, props={}):
+    def importFields_hfss(cls, directory, freqUnit="MHz", eFieldRefString="efield_<f>_port<p>.fld", bFieldRefString="bfield_<f>_port<p>.fld", nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, col_ascii_order = 0, props={}):
 
         if not imp_efield and not imp_bfield:
             raise EM_FieldIOError("At least one among imp_efield and imp_bfield has to be True")
         if nPoints is not None: 
             EM_FieldPointsError.check(nPoints, "importFields_hfss")
-        if not isinstance(nPorts, int) or nPorts < 1:
-            raise  EM_FieldIOError("nPorts has to be an integer higher than zero")
+        if freqUnit.lower() not in ["hz", "khz", "mhz", "ghz"]:
+            raise  EM_FieldIOError("freqUnit can only be 'Hz', 'kHz', 'MHz' or 'GHz'")
         if pkORrms.lower() not in ["pk", "rms"]:
-            raise  EM_FieldIOError("pkORrms can only be 'pk or 'rms'")
+            raise  EM_FieldIOError("pkORrms can only be 'pk' or 'rms'")
         if col_ascii_order not in [0, 1]:
             raise  EM_FieldIOError("col_ascii_order can take 0 (Re_x, Re_y, Re_z, Im_x, Im_y, Im_z) or 1 (Re_x, Im_x, Re_y, Im_y, Re_z, Im_z) values")
         
         try:
-            
+            # Retrieving frequency and ports from files
+            if imp_efield:
+                efield_freqs, efield_n_ports, efield_filenames = cls.readPortFreqsFromFilenames(directory, eFieldRefString)
+            if imp_bfield:
+                bfield_freqs, bfield_n_ports, bfield_filenames = cls.readPortFreqsFromFilenames(directory, bFieldRefString)
+
+            # TODO Check if info from efield and bfield are compatible
+
+            # FIXME nPorts and freqs can also be relevant to efield in case bfield is not imported    
+            nPorts = bfield_n_ports
+            freqs = bfield_freqs
+
             if nPoints is None: #I try to evaluate nPoints
                 
                 if imp_efield:
-                    x,y,z = np.loadtxt(directory+"/efield_%s_port1.fld"%(freqs[0]), skiprows=2, unpack=True, usecols=(0,1,2))
+                    x,y,z = np.loadtxt(efield_filenames[0,0], skiprows=2, unpack=True, usecols=(0,1,2))
                 else:
-                    x,y,z = np.loadtxt(directory+"/bfield_%s_port1.fld"%(freqs[0]), skiprows=2, unpack=True, usecols=(0,1,2))
+                    x,y,z = np.loadtxt(bfield_filenames[0,0], skiprows=2, unpack=True, usecols=(0,1,2))
                 
                 orig_len = len(x) #Total number of points
                 
@@ -1216,9 +1227,8 @@ class EM_Field():
             else:
                 rmsCoeff = 1 
         
-        
             for idx_f, f in enumerate(freqs):
-                print("Importing %s MHz fields\n"%f)
+                print(f"Importing {f} {freqUnit} fields\n")
     
                 for port in range(nPorts):
                     print("\r\tImporting port%d fields"%(port+1), end='', flush=True)
@@ -1229,14 +1239,14 @@ class EM_Field():
                         re_cols = (3,5,7)
                         im_cols = (4,6,8)
                     if imp_efield:
-                        e_real = np.loadtxt(directory+"/efield_%s_port%d.fld"%(f,port+1), skiprows=2, usecols=re_cols)
-                        e_imag = np.loadtxt(directory+"/efield_%s_port%d.fld"%(f,port+1), skiprows=2, usecols=im_cols)
+                        e_real = np.loadtxt(efield_filenames[idx_f,port], skiprows=2, usecols=re_cols)
+                        e_imag = np.loadtxt(efield_filenames[idx_f,port], skiprows=2, usecols=im_cols)
                         if e_real.shape[0] != n:
                             raise EM_FieldIOError("At least one of e_field files is not compatible with the evaluated or passed nPoints", "importFields_hfss")
                         e_field[idx_f, port, :, :] = (e_real+1j*e_imag).T
                     if imp_bfield:
-                        b_real = np.loadtxt(directory+"/bfield_%s_port%d.fld"%(f,port+1), skiprows=2, usecols=re_cols)
-                        b_imag = np.loadtxt(directory+"/bfield_%s_port%d.fld"%(f,port+1), skiprows=2, usecols=im_cols)
+                        b_real = np.loadtxt(bfield_filenames[idx_f,port], skiprows=2, usecols=re_cols)
+                        b_imag = np.loadtxt(bfield_filenames[idx_f,port], skiprows=2, usecols=im_cols)
                         if b_real.shape[0] != n:
                             raise EM_FieldIOError("At least one of b_field files is not compatible with the evaluated or passed nPoints", "importFields_hfss")
                         b_field[idx_f, port, :, :] = (b_real+1j*b_imag).T
@@ -1254,7 +1264,16 @@ class EM_Field():
                 b_field = b_field.reshape(tuple(b_field.shape[:3])+tuple([-1]), order='C')
                 b_field = b_multCoeff * np.sqrt(1/Pinc_ref) * rmsCoeff * b_field
             
-            freqs = 1e6*np.array(freqs).astype(float)
+            if freqUnit.lower() == "hz":
+                f_multiplier = 1
+            elif freqUnit.lower() == "khz":
+                f_multiplier = 1e3
+            elif freqUnit.lower() == "mhz":
+                f_multiplier = 1e6
+            elif freqUnit.lower() == "ghz":
+                f_multiplier = 1e9
+
+            freqs = f_multiplier*np.array(freqs).astype(float)
             
             return cls(freqs, nPoints, b_field, e_field, props)
         
@@ -1266,6 +1285,17 @@ class EM_Field():
             
     @classmethod
     def readPortFreqsFromFilenames(cls, directory, referenceString):
+        """Reads the frequency values and number of ports from filenames following the sintax specified in referenceString
+
+        Args:
+            directory (string): The path with the files containing the EM field
+            referenceString (string): The string with the sintax with which the EM field files have to be searched. <f> is for frequency value and <p> is for the port number
+
+        Returns:
+            freqs (numpy ndarray): Numpy ndarray with the frequency values
+            n_ports (int): The number of ports
+            filenames (numpy ndarray): nf x np numpy ndarray of strings listing the filenames to be loaded according to the information retreived. nf is the number of frequency values and np is the number of ports
+        """
         # Preliminary info about the reference string
 
         # TODO check if referenceString is ok e.g., <f> and <p> should be separated by at least a character which isn't a number
@@ -1318,7 +1348,7 @@ class EM_Field():
 
         #  Print Result
 
-        print(f"\nN° detected frequency values: {freqs.size}\nN° detected ports: {n_ports}\n") 
+        print(f"\n{referenceString}:\nN° detected frequency values: {freqs.size}\nN° detected ports: {n_ports}\n") 
 
 
         # Create filenames to be loaded
