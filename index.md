@@ -177,5 +177,9 @@ U. Zanovello et al., "CoSimPy: an Open-Source Python Library for MRI Radiofreque
 
 The library has been developed in the framework of the Researcher Mobility Grant (RMG) associated with the european project 17IND01 MIMAS. This RMG: 17IND01-RMG1 MIMAS has received funding from the EMPIR programme co-financed by the Participating States and from the European Union's Horizon 2020 research and innovation programme.
 
-[![](https://github.com/umbertozanovello/CoSimPy/blob/main/docs/images/EMPIR_logo.jpg?raw=true)](https://www.euramet.org/research-innovation/research-empir/)
+Maintenance of CoSimPy is made possible thanks to funds coming from the EPM STASIS project 21NRM05. The project (21NRM05 STASIS) has received funding from the European Partnership on Metrology, co-financed from the European Union's Horizon Europe Research and Innovation Programme and by the Participating States.
+
+[![](https://github.com/umbertozanovello/CoSimPy/blob/develop/docs/images/EPM_logo.jpg?raw=true)](https://metpart.eu/)
 [![](https://github.com/umbertozanovello/CoSimPy/blob/main/docs/images/MIMAS_logo.png?raw=true)](https://www.ptb.de/mimas/home/)
+[![](https://github.com/umbertozanovello/CoSimPy/blob/develop/docs/images/STASIS_logo.png?raw=true)](https://www.ptb.de/stasis/)
+
