@@ -12,7 +12,7 @@ import tempfile
 import pytest
 
 # For running without packaging. In python console type pytest.main(["optional_cmd_options"])
-packaging = False # Set to False to run tests in the developement stage
+packaging = True # Set to False to run tests in the developement stage
 
 if packaging:
     from cosimpy import *
@@ -37,6 +37,7 @@ test10 = True
 test11 = True
 test12 = True
 test13 = True
+test14 = True
 
 testE1 = True
 testE2 = True
@@ -550,6 +551,19 @@ if test13:
         assert((np.arange(5)==np.unique(cluster_array)).all())
         assert(np.isclose(exp_Amats, A_mats[np.argsort(np.linalg.eigvalsh(A_mats)[:,-1])]).all())
         
+if test14:
+    @pytest.mark.slow
+    def test14():
+        """
+        TEST 14: Check EM_Field import from CST
+        """
+        
+        directory_input = os.path.join(os.path.dirname(__file__),"filesForTests//FieldFromCST")
+        print(directory_input)
+        em_field = EM_Field.importFields_cst(directory_input, "MHz", "efield_<f>_port<p>.h5", "bfield_<f>_port<p>.h5", nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=False, fileType = 'hdf5', col_ascii_order = 0, props={})
+        assert(em_field.nPorts == 4)
+        assert(em_field.frequencies == [123.2e6])
+
 if testE1:
     @pytest.mark.parametrize("s_input, f_input, z0_input",\
                              [(np.array([[0,1],[1,0]]), [123e6], [50,50]),\
@@ -663,17 +677,15 @@ if testE7:
             EM_Field(freqs, nPoints, b_field, None, props_input)
             
 if testE8:
-    @pytest.mark.parametrize("directory_input, freqs_input, nPorts_input, nPoints_input, imp_efield_input, imp_bfield_input",\
-                             [("./", ["123.2"], 4, None, True, False),\
-                              (None, ["123.20"], 4, None, True, False),\
-                                  (None, ["123.2"], 5, None, True, False),\
-                                      (None, ["123.2"], 4, [10,10], True, False),\
-                                          (None, ["123.2"], 4, None, False, False),\
-                                              (None, ["123.2"], 4, None, True, True),\
-                                                  (None, ["123.2"], 0, None, True, False),\
-                                                      (None, ["123.2"], 1.5, None, True, False)])
+    @pytest.mark.parametrize("directory_input, freqUnit_input, eFieldRefString_input, bFieldRefString_input, nPoints_input, imp_efield_input, imp_bfield_input",\
+                             [("./", "MHz", "efield_<f><p>.h5", "bfield_<f><p>.h5", None, True, False),\
+                              ("./", "MHz", "efield_<f>5<p>.h5", "bfield_<f>5<p>.h5", None, True, False),\
+                              ("./", "MHz", "efield_<f>.h5", "bfield_<f>.h5", None, True, False),\
+                              ("./", "MHz", "efield_<p>.h5", "bfield_<p>.h5", None, True, False),\
+                              (None, "MHz", "efield_<f>_port<p>.h5", "bfield_<f>_port<p>.h5", None, False, False),\
+                                    (None, "MHz", "efield_<f>_port<p>.h5", "bfield_<f>_port<p>.h5", [10,10], True, False)])
     @pytest.mark.slow
-    def testE8(directory_input, freqs_input, nPorts_input, nPoints_input, imp_efield_input, imp_bfield_input):
+    def testE8(directory_input, freqUnit_input, eFieldRefString_input, bFieldRefString_input, nPoints_input, imp_efield_input, imp_bfield_input):
         """
         TEST E8: Check EM_Field import from CST exceptions
         """
@@ -682,7 +694,7 @@ if testE8:
             directory_input = os.path.join(os.path.dirname(__file__),"filesForTests//FieldFromCST")
 
         with pytest.raises(EM_FieldError):
-            EM_Field.importFields_cst(directory_input, freqs_input, nPorts_input, nPoints=nPoints_input, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=imp_efield_input, imp_bfield=imp_bfield_input, fileType = 'hdf5', col_ascii_order = 0, props={})
+            EM_Field.importFields_cst(directory_input, freqUnit_input, eFieldRefString_input, bFieldRefString_input, nPoints=nPoints_input, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=imp_efield_input, imp_bfield=imp_bfield_input, fileType = 'hdf5', col_ascii_order = 0, props={})
 
 if testE9:
     @pytest.mark.parametrize("directory_input, freqs_input, nPorts_input, imp_efield_input, imp_bfield_input",\
