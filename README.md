@@ -168,6 +168,9 @@ If you find CoSimPy useful for your work, please consider to cite this [paper](h
 
 The library has been developed in the framework of the Researcher Mobility Grant (RMG) associated with the european project 17IND01 MIMAS. This RMG: 17IND01-RMG1 MIMAS has received funding from the EMPIR programme co-financed by the Participating States and from the European Union's Horizon 2020 research and innovation programme.
 
-[![](./docs/images/EMPIR_logo.jpg)](https://www.euramet.org/research-innovation/research-empir/)
+Maintenance of CoSimPy is made possible thanks to funds coming from the EPM STASIS project 21NRM05. The project (21NRM05 STASIS) has received funding from the European Partnership on Metrology, co-financed from the European Union's Horizon Europe Research and Innovation Programme and by the Participating States.
+
+[![](./docs/images/EPM_logo.jpg)](https://metpart.eu/)
 [![](./docs/images/MIMAS_logo.png)](https://www.ptb.de/mimas/home/)
+[![](./docs/images/STASIS_logo.png)](https://www.ptb.de/stasis/)
 
