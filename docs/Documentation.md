@@ -1433,81 +1433,6 @@ Returns
 * fig : *matplotlib.figure.Figure* <br>
 instance of *matplotlib.figure.Figure* relevant to the produced plot
 
-
-#### `plotB(self, comp, freq, port, plane, sliceIdx, vmin=None, vmax=None)`
-**NOTE**: This method is replaced by the `plotEMField` method and will be removed in the next versions of CoSimPy
-
-Method for plotting the magnetic flux density field over a specific slice
-
-![image](./images/plotB.png)
-
-Parameters
-
-* self : *EM_Field*
-* comp : *string* <br>
-component of the magnetic flux density field, in microtesla, to be plotted. It can take the following values:
-  * 'x' : x-component
-  * 'y' : y-component
-  * 'z' : z-component
-  * 'mag' : magnitude of the magnetic flux density field vector (rms value)
-  * 'b1+' : magnitude of B<sub>1</sub><sup>+</sup>
-  * 'b1-' : magnitude of B<sub>1</sub><sup>-</sup>
-* freq : *float* <br>
-frequency, in hertz, of the magnetic flux density field to be plotted
-* port : *int* <br>
-port number which is supplied with 1 W incident power to generate the magnetic flux density field. All the other ports are closed on matched loads. It can take values from 1 to N<sub>P</sub> being N<sub>P</sub> the number of ports of the device
-* plane : *string* <br>
-slice to be plotted. It can take the following values:
-  * 'xy' : axial slice
-  * 'xz' : coronal slice
-  * 'yz' : sagittal slice
-* sliceIdx : *int* <br>
-index of the slice to be plotted. It can take negative values. In that case `sliceIdx = Ns + sliceIdx` where Ns is the total number of slices in the relevant direction
-* vmin *float*, *optional* <br>
-minimum value, in microtesla, of the chromatic bar. Default is `None` 
-* vmax *float*, *optional* <br>
-maximum value, in microtesla, of the chromatic bar. Default is `None` 
-
-Returns
-
-* None
-
-#### `plotE(self, comp, freq, port, plane, sliceIdx, vmin=None, vmax=None)`
-**NOTE**: This method is replaced by the `plotEMField` method and will be removed in the next versions of CoSimPy
-
-Method for plotting the melectric field over a specific slice
-
-![image](./images/plotE_n.png)
-
-Parameters
-
-* self : *EM_Field*
-* comp : *string* <br>
-component of the electric field, in volts per meter, to be plotted. It can take the following values:
-  * 'x' : x-component
-  * 'y' : y-component
-  * 'z' : z-component
-  * 'mag' : magnitude of the electric field vector (rms value)
-* freq : *float* <br>
-frequency, in hertz, of the electric field to be plotted
-* port : *int* <br>
-port number which is supplied with 1 W incident power to generate the electric field. All the other ports are closed on matched loads. It can take values from 1 to N<sub>P</sub> being N<sub>P</sub> the number of ports of the device
-* plane : *string* <br>
-slice to be plotted. It can take the following values:
-  * 'xy' : axial slice
-  * 'xz' : coronal slice
-  * 'yz' : sagittal slice
-* sliceIdx : *int* <br>
-index of the slice to be plotted. It can take negative values. In that case `sliceIdx = Ns + sliceIdx` where Ns is the total number of slices in the relevant direction
-* vmin *float*, *optional* <br>
-minimum value, in volts per meter, of the chromatic bar. Default is `None` 
-* vmax *float*, *optional* <br>
-maximum value, in volts per meter, of the chromatic bar Default is `None` 
-
-Returns
-
-* None
-
 #### `exportXMF(self, filename)`
 
 Method for generating a .xmf and a .h5 file to be imported in data analysis and visualization applications such as [ParaView](https://www.paraview.org/). In the .h5 files, the electric field and magnetic flux density field are stored as <f\>MHz-p<n\>-<F\>_<type\> where <f\> is the frequency value in megahertz, <n\> is the port number, <F\> is 'E' (electric field) or 'B' (magnetic flux density field) and <type\> can be 'real' or 'imag' identifying the real or imaginary part of the field phasor. Additional properties, defined along the *EM_Field* instance, are stored with their full name in the .h5 file.
@@ -1543,19 +1468,21 @@ Returns
 * EM_Field : *EM_Field* <br>
 *EM_Field* defined over the same frequency values of `self` *EM_Field*. The returned *EM_Field* is characterised by N<sub>Pout</sub> different distributions of EM fields corresponding to the number of rows of `p_incM` and `phaseM` method parameters
 
-#### `importFields_cst(directory, freqs, nPorts, nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, fileType = 'ascii', col_ascii_order = 0, props={})`
+#### `importFields_cst(directory, freqUnit="MHz", eFieldRefString="efield_<f>_port<p>.fld", bFieldRefString="bfield_<f>_port<p>.fld", nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, fileType = 'ascii', col_ascii_order = 0, props={})`
 
 class method which returns an *EM_Field* instance importing the data from [CST<sup>®</sup> STUDIO SUITE](https://www.3ds.com/products-services/simulia/products/cst-studio-suite/) standard ASCII of HDF5 export files.<br>
-Results files must be collected in a dedicated directory and named as <field_str\>_<freq_str\>_port<n\>.txt where <field_str\> can be either 'efield', for the electric field result, or 'bfield' for magnetic flux density field results, <freq_str\> is a string identifying the frequency value in megahertz (e.g. '128.4') and <n\> is the number of the port supplied, in the simulation environment, to generate the relevant EM fields. All the EM quantities must be exported on the same regular grid.
+RResults files must be collected in a dedicated directory and named accordingly to the `eFieldRefString` and `bFieldRefString` for the electric field and magnetic flux density, respectively. All the EM quantities must be exported on the same regular grid.
 
 Parameters
 
 * directory : *string* <br>
 *string* reporting the path of the directory which contains the text files
-* freqs : *list*, *numpy ndarray* <br>
-*list* or *numpy ndarray* of *string* values reporting the frequency values as they are indicated in the results filenames (<freq_str\>)
-* nPorts : *int* <br>
-number of ports for which the results are available
+* freqUnit : *string*, *optional* <br>
+*string* indicating the frequency unit taken from the filenames. Accepted values are 'Hz', 'kHz', 'MHz', 'GHz'. Default is 'MHz'
+* eFieldRefString :  *string*, *optional* <br>
+The reference string of the filenames containing the Electric field distributions. The reference string indicates where cosimpy should read the frequency and port information. The first is indicated by '\<f>' and the latter by \<p>. In the filenames, '\<f>' and '\<p>' are replaced by numbers and should be separated by at least one non-numeric character. For example, if the Electric field filenames are such as efield_128.0_port1.fld, the *eFieldRefString* will be equal to 'efield_\<f>_port\<p>.fld'. Default is 'efield_\<f>_port\<p>.fld'
+* bFieldRefString :  *string*, *optional* <br>
+The reference string of the filenames containing the Magnetic Flux Density distributions. The reference string indicates where cosimpy should read the frequency and port information. The first is indicated by '\<f>' and the latter by \<p>. In the filenames, '\<f>' and '\<p>' are replaced by numbers and should be separated by at least one non-numeric character. For example, if the Magnetic Flux Density filenames are such as bfield_128.0_port1.fld, the *bFieldRefString* will be equal to 'bfield_\<f>_port\<p>.fld'. Default is 'bfield_\<f>_port\<p>.fld'
 * nPoints : *list*, *numpy ndarray*, *optional* <br>
 *list* or *numpy ndarray* with a length equal to three reporting the number of spatial points over which the electric and magnetic flux density fields are defined: [N<sub>x</sub>, N<sub>y</sub>, N<sub>z</sub>]. If `None` (default value) the method deduces them from the result files at the expenses of a slight longer import process
 * Pinc_ref : *float*, *optional* <br>
@@ -1617,19 +1544,21 @@ Returns
 * EM_Field : *EM_Field* <br>
 *EM_Field* obtained from the EM results exported from Sim4Life. `EM_Field.properties` is a dictionary based on the `props` parameter passed to the method
 
-#### `importFields_hfss(directory, freqs, nPorts, nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, col_ascii_order = 0, props={})`
+#### `importFields_hfss(directory, freqUnit="MHz", eFieldRefString="efield_<f>_port<p>.fld", bFieldRefString="bfield_<f>_port<p>.fld", nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, col_ascii_order = 0, props={})`
 
 class method which returns an *EM_Field* instance importing the data from [Ansys HFSS<sup>®</sup> ](https://www.ansys.com/products/electronics/ansys-hfss) standard ASCII .fld files.<br>
-Results files must be collected in a dedicated directory and named as <field_str\>_<freq_str\>_port<n\>.fld where <field_str\> can be either 'efield', for the electric field result, or 'bfield' for magnetic flux density field results, <freq_str\> is a string identifying the frequency value in megahertz (e.g. '128.4') and <n\> is the number of the port supplied, in the simulation environment, to generate the relevant EM fields. All the EM quantities must be exported on the same regular grid.
+Results files must be collected in a dedicated directory and named accordingly to the `eFieldRefString` and `bFieldRefString` for the electric field and magnetic flux density, respectively. All the EM quantities must be exported on the same regular grid.
 
 Parameters
 
 * directory : *string* <br>
 *string* reporting the path of the directory which contains the text files
-* freqs : *list*, *numpy ndarray* <br>
-*list* or *numpy ndarray* of *string* values reporting the frequency values as they are indicated in the results filenames (<freq_str\>)
-* nPorts : *int* <br>
-number of ports for which the results are available
+* freqUnit : *string*, *optional* <br>
+*string* indicating the frequency unit taken from the filenames. Accepted values are 'Hz', 'kHz', 'MHz', 'GHz'. Default is 'MHz'
+* eFieldRefString :  *string*, *optional* <br>
+The reference string of the filenames containing the Electric field distributions. The reference string indicates where cosimpy should read the frequency and port information. The first is indicated by '\<f>' and the latter by \<p>. In the filenames, '\<f>' and '\<p>' are replaced by numbers and should be separated by at least one non-numeric character. For example, if the Electric field filenames are such as efield_128.0_port1.fld, the *eFieldRefString* will be equal to 'efield_\<f>_port\<p>.fld'. Default is 'efield_\<f>_port\<p>.fld'
+* bFieldRefString :  *string*, *optional* <br>
+The reference string of the filenames containing the Magnetic Flux Density distributions. The reference string indicates where cosimpy should read the frequency and port information. The first is indicated by '\<f>' and the latter by \<p>. In the filenames, '\<f>' and '\<p>' are replaced by numbers and should be separated by at least one non-numeric character. For example, if the Magnetic Flux Density filenames are such as bfield_128.0_port1.fld, the *bFieldRefString* will be equal to 'bfield_\<f>_port\<p>.fld'. Default is 'bfield_\<f>_port\<p>.fld'
 * nPoints : *list*, *numpy ndarray*, *optional* <br>
 *list* or *numpy ndarray* with a length equal to three reporting the number of spatial points over which the electric and magnetic flux density fields are defined: [N<sub>x</sub>, N<sub>y</sub>, N<sub>z</sub>]. If `None` (default value) the method deduces them from the result files at the expenses of a slight longer import process
 * Pinc_ref : *float*, *optional* <br>
@@ -1655,6 +1584,23 @@ Returns
 
 * EM_Field : *EM_Field* <br>
 *EM_Field* obtained from the EM results exported from Ansys HFSS<sup>®</sup>. `EM_Field.properties` is a dictionary based on the `props`parameter passed to the method
+
+#### `__readPortFreqsFromFilenames(cls, directory, referenceString)`
+Method for reading the frequency values and number of ports from the filenames following the sintax specified in `referenceString`
+* directory : *string* <br>
+*string* reporting the path of the directory which contains the text files
+* referenceString : *string* <br>
+The reference string of the filenames containing the information about the frequency values \<f> and port numbers \<p> (e.g., 'efield_\<f>_port\<p>.xx').
+
+Returns
+
+* freqs : *numpy ndarray* <br>
+*numpy ndarray* of *float* values relevant to the frequency values extrapolated from the filenames
+* n_ports : *int* <br>
+The number of ports extrapolated from the filenames
+* filenames : *numpy ndarray* <br>
+*numpy ndarray* of *string* with size equal to N<sub>f</sub> x N<sub>p</sub> where N<sub>f</sub> is the number of frequency values and N<sub>p</sub> the number of ports. Each *string* represents a filename in `directory` that can be used by other methods to import the Electric Field or the Magnetic Flux Density.
+
 ___
 ## RF_Coil class
 This class represents the link between the *S_Matrix* and *EM_Field* classes. An instance of this class represents the simulated device being, its properties, an *S_Matrix* and an *EM_Field* instance. The *S_Matrix* must be defined over all the frequency values at which the *EM_Field* is defined.
