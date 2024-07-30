@@ -560,6 +560,7 @@ class S_Matrix():
             header += "\n! Created by CoSimPy%s\n!" %("" if version is None else "\n! EIA/IBIS Open Forum Touchstone (R) File Format Specifications v. %s"%version)
             header += "-"*65
             header += "\n# %s %s %s R " %(options["frequency_unit"], options["parameter"], options["format"])
+            
             if (self.__z0 == self.__z0[0]).all(): #Same z0 for all ports
                 header += "%.2f" %(self.__z0[0])
             elif version == None:
@@ -605,8 +606,22 @@ class S_Matrix():
                     param_array = np.transpose(param_array,axes=[0,2,1]) #In version 1.1 p11 p21 p12 p22 ...
                 
                 param_flat = param_array.flatten()
-                param_A = np.real(param_flat)
-                param_B = np.imag(param_flat)
+                if options["format"].upper() == "MA":
+                    param_A = np.abs(param_flat)
+                    param_B = np.rad2deg(np.angle(param_flat))
+                elif options["format"].upper() == "RI":
+                    param_A = np.real(param_flat)
+                    param_B = np.imag(param_flat)
+                elif options["format"].upper() == "DB":
+                    param_A = 20*np.log10(np.abs(param_flat))
+                    param_B = np.rad2deg(np.angle(param_flat))
+                if options["format"].upper() == "MA_RAD":
+                    param_A = np.abs(param_flat)
+                    param_B = np.angle(param_flat)
+                elif options["format"].upper() == "DB_RAD":
+                    param_A = 20*np.log10(np.abs(param_flat))
+                    param_B = np.angle(param_flat)
+                
                 
                 with open(filename,"w") as f:
                     f.write(header)
