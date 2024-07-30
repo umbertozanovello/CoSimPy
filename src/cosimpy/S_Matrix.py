@@ -595,8 +595,25 @@ class S_Matrix():
                 
                 data = np.zeros([self.__n_f, 1+2*(self.__nPorts**2)], dtype=float)
                 data[:,0] = frequencies
-                data[:,1::2] = np.real(param_flat)
-                data[:,2::2] = np.imag(param_flat)
+
+                if options["format"].upper() == "MA":
+                    param_A = np.abs(param_flat)
+                    param_B = np.rad2deg(np.angle(param_flat))
+                elif options["format"].upper() == "RI":
+                    param_A = np.real(param_flat)
+                    param_B = np.imag(param_flat)
+                elif options["format"].upper() == "DB":
+                    param_A = 20*np.log10(np.abs(param_flat))
+                    param_B = np.rad2deg(np.angle(param_flat))
+                if options["format"].upper() == "MA_RAD":
+                    param_A = np.abs(param_flat)
+                    param_B = np.angle(param_flat)
+                elif options["format"].upper() == "DB_RAD":
+                    param_A = 20*np.log10(np.abs(param_flat))
+                    param_B = np.angle(param_flat)
+
+                data[:,1::2] = param_A
+                data[:,2::2] = param_B
         
                 np.savetxt(filename, data, header=header, fmt="%.6f", delimiter="\t", comments="")
                 
