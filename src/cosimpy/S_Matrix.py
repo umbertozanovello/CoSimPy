@@ -4,7 +4,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.interpolate import make_interp_spline
 from scipy.optimize import newton_krylov
-from scipy.optimize.nonlin import NoConvergence
+from scipy.optimize import NoConvergence
 from functools import partial
 from copy import copy
 import warnings

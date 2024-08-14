@@ -851,7 +851,7 @@ class EM_Field():
                 bfield_freqs, bfield_n_ports, bfield_filenames = cls.__readPortFreqsFromFilenames(directory, bFieldRefString)
 
             if imp_efield and imp_bfield:
-                if not np.isequal(efield_freqs, bfield_freqs).all():
+                if not np.equal(efield_freqs, bfield_freqs).all():
                     raise EM_FieldIOError("The electric field and magnetic field have to be defined at the same frequency values", "importFields_hfss")
 
             if imp_efield:
@@ -1096,7 +1096,7 @@ class EM_Field():
                 bfield_freqs, bfield_n_ports, bfield_filenames = cls.__readPortFreqsFromFilenames(directory, bFieldRefString)
 
             if imp_efield and imp_bfield:
-                if not np.isequal(efield_freqs, bfield_freqs).all():
+                if not np.equal(efield_freqs, bfield_freqs).all():
                     raise EM_FieldIOError("The electric field and magnetic field have to be defined at the same frequency values", "importFields_hfss")
 
             if imp_efield:
