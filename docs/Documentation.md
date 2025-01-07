@@ -1260,7 +1260,8 @@ Returns
 
 #### `compSensitivities(self)`
 
-If the magnetic flux density field is defined, the method returns the complex B<sub>1</sub><sup>+</sup> and B<sub>1</sub><sup>-</sup> values.
+If the magnetic flux density field is defined, the method returns the complex B<sub>1</sub><sup>+</sup> and B<sub>1</sub><sup>-</sup> values according to the following expressions:
+$$B_1^+=\frac{B_x+jB_y}{2}\quad B_1^-=\frac{(B_x-jB_y)^*}{2}$$
 
 Parameters
 
