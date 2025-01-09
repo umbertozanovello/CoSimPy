@@ -1545,7 +1545,7 @@ Returns
 * EM_Field : *EM_Field* <br>
 *EM_Field* obtained from the EM results exported from Sim4Life. `EM_Field.properties` is a dictionary based on the `props` parameter passed to the method
 
-#### `importFields_hfss(directory, freqUnit="MHz", eFieldRefString="efield_<f>_port<p>.fld", bFieldRefString="bfield_<f>_port<p>.fld", nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, col_ascii_order = 0, props={})`
+#### `importFields_hfss(directory, freqUnit="MHz", eFieldRefString="efield_<f>_port<p>.fld", bFieldRefString="bfield_<f>_port<p>.fld", nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, col_ascii_order = 1, props={})`
 
 class method which returns an *EM_Field* instance importing the data from [Ansys HFSS<sup>®</sup> ](https://www.ansys.com/products/electronics/ansys-hfss) standard ASCII .fld files.<br>
 Results files must be collected in a dedicated directory and named accordingly to the `eFieldRefString` and `bFieldRefString` for the electric field and magnetic flux density, respectively. All the EM quantities must be exported on the same regular grid.
@@ -1576,7 +1576,7 @@ if `True` the method imports the results relevant to the magnetic flux density f
 *int* identifying the column order in the ascii files.<br>
 if 0: |x, y, z, <EM\>xRe, <EM\>yRe, <EM\>zRe, <EM\>xIm, <EM\>yIm, <EM\>zIm|<br>
 if 1: |x, y, z, <EM\>xRe, <EM\>xIm, <EM\>yRe, <EM\>yIm, <EM\>zRe, <EM\>zIm|<br>
-Default is 0
+Default is 1
 * props : *dictionary*, *optional* <br>
 additional properties defined over the same N<sub>N</sub> spatial points over which the electric and magnetic flux density fields are defined. For further details see `EM_Field.__init__` method.<br>
 Default is *{}*

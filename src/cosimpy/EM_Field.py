@@ -852,7 +852,7 @@ class EM_Field():
 
             if imp_efield and imp_bfield:
                 if not np.equal(efield_freqs, bfield_freqs).all():
-                    raise EM_FieldIOError("The electric field and magnetic field have to be defined at the same frequency values", "importFields_hfss")
+                    raise EM_FieldIOError("The electric field and magnetic field have to be defined at the same frequency values", "importFields_cst")
 
             if imp_efield:
                 nPorts = efield_n_ports
@@ -1075,7 +1075,7 @@ class EM_Field():
                 raise e
             
     @classmethod
-    def importFields_hfss(cls, directory, freqUnit="MHz", eFieldRefString="efield_<f>_port<p>.fld", bFieldRefString="bfield_<f>_port<p>.fld", nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, col_ascii_order = 0, props={}):
+    def importFields_hfss(cls, directory, freqUnit="MHz", eFieldRefString="efield_<f>_port<p>.fld", bFieldRefString="bfield_<f>_port<p>.fld", nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, col_ascii_order = 1, props={}):
 
         if not imp_efield and not imp_bfield:
             raise EM_FieldIOError("At least one among imp_efield and imp_bfield has to be True")
