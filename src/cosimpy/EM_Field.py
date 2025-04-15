@@ -7,6 +7,7 @@ from copy import copy
 import re
 from os import listdir
 from os.path import isfile, join
+from ctypes import CDLL, c_int, c_double
 from .Exceptions import EM_FieldError, EM_FieldArrayError, EM_FieldFrequenciesError, EM_FieldPointsError,\
     EM_FieldIOError, EM_FieldPropertiesError
 
@@ -215,7 +216,7 @@ class EM_Field():
         if not isinstance(elCond_key, str):
             raise EM_FieldError("elCond_key has to be a string relevant to the key of the electrical conductivity in the properties dictionary", "compPowDens")
         if elCond_key not in self.__props.keys():
-            raise EM_FieldPropertiesError("%s has not been found among the keys of the properties dictionary", "compPowDens")
+            raise EM_FieldPropertiesError(f"{elCond_key} has not been found among the keys of the properties dictionary", "compPowDens")
         
         elCond = self.getProperty(elCond_key)
             
@@ -253,6 +254,106 @@ class EM_Field():
         
         return depPow
     
+    def spatialAverageSAR(self, targetMass, voxVols, elCond_key, massDensity_key, p_inc, freq, step1_libPath, step2_libPath, backgroundIdx = None, additionalBackground=[0,0,0]):
+
+        if not isinstance(elCond_key, str):
+            raise EM_FieldError("elCond_key has to be a string relevant to the key of the electrical conductivity in the properties dictionary", "spatialAverageSAR")
+        if elCond_key not in self.__props.keys():
+            raise EM_FieldPropertiesError("%s has not been found among the keys of the properties dictionary", "spatialAverageSAR")
+        
+        elCond = self.getProperty(elCond_key)
+
+        if not isinstance(massDensity_key, str):
+            raise EM_FieldError("massDensity_key has to be a string relevant to the key of the mass density in the properties dictionary", "spatialAverageSAR")
+        if massDensity_key not in self.__props.keys():
+            raise EM_FieldPropertiesError(f"{massDensity_key} has not been found among the keys of the properties dictionary", "spatialAverageSAR")
+        
+        massDensity = self.getProperty(massDensity_key)
+            
+        if self.__e_field is None:
+            raise EM_FieldError("No e field property is specified for the EM_Field instance. Power density cannot be computed", "spatialAverageSAR")
+        
+        if not isinstance(p_inc, np.ndarray) and not isinstance(p_inc, list):
+            raise EM_FieldError("p_inc can only be numpy ndarray or a list", "spatialAverageSAR")
+        else:
+            p_inc = np.array(p_inc)
+        if p_inc.size != self.__nPorts:
+            raise EM_FieldError("p_inc has to be a self.nPorts length list or numpy ndarray", "spatialAverageSAR")
+        
+        f_idx = np.where(self.__f==freq)[0]
+        if f_idx.size == 0:
+            raise EM_FieldFrequenciesError("No E field for the specified frequency", "compQMatrix")
+        else:
+            f_idx = f_idx[0]
+
+        # Loading the libraries
+        step1_libPath = CDLL(step1_libPath)
+        step2_libPath = CDLL(step2_libPath)
+
+        avgSARStep1 = step1_libPath.main
+        avgSARStep1.restype = c_int
+        avgSARStep2 = step2_libPath.main
+        avgSARStep2.restype = c_int
+
+        # Preparing the numpy data
+        if backgroundIdx is not None:
+            massDensity[self.__props["idxs"]==backgroundIdx] = np.nan # I set to nan density values in background voxels
+        massArray = voxVols * massDensity.reshape(self.__nPoints,order='F')
+
+        localSARArray = self.compPowDens(elCond_key, p_inc)[f_idx].reshape(self.__nPoints,order='F')
+        localSARArray[np.isnan(massArray)] = np.nan # Not really needeed ...
+        additionalBackground = np.array(additionalBackground)
+        n_points = self.__nPoints + additionalBackground*2
+
+        voxStatusArray = np.ones_like(massArray, dtype=int) # INVALID=0, UNUSED=1, USED=2, VALID=3
+
+        original_slices = []
+        for i in range(3):
+            original_slices.append(slice(additionalBackground[i],additionalBackground[i]+self.__nPoints[i]))
+
+        if ((additionalBackground)>0).any():
+            
+            
+            box = np.full(n_points, np.nan)
+            box[original_slices[0], original_slices[1], original_slices[2]] = massArray
+            massArray = np.copy(box)
+            
+            box[original_slices[0], original_slices[1], original_slices[2]] = localSARArray
+            localSARArray = np.copy(box)
+            localSARArray[np.isnan(localSARArray)] = np.nan
+
+            box[original_slices[0], original_slices[1], original_slices[2]] = voxStatusArray
+            voxStatusArray = np.copy(box)
+        
+        voxStatusArray[np.isnan(massArray)] = 0
+        voxStatusArray = voxStatusArray.astype(int)
+
+        print(localSARArray.shape)
+        print(massArray.shape)
+        print(voxStatusArray.shape)
+
+        # ctypes definitions
+
+        voxStatusArray_c = (c_int * voxStatusArray.size)(*voxStatusArray.flatten())
+        massArray_c = (c_double * massArray.size)(*massArray.flatten())
+        avgSARArray_c = (c_double * massArray.size)(*(np.zeros(massArray.size)))
+        localSARArray_c = (c_double * localSARArray.size)(*localSARArray.flatten())
+        n_points_c = (c_int * 3)(*n_points)
+        targetMass_c = c_double(targetMass)
+
+        # C functions execution
+        
+        print("Step one in progress ...\n\n")
+        ret = avgSARStep1(massArray_c, localSARArray_c, avgSARArray_c, voxStatusArray_c, targetMass_c, n_points_c)
+
+        print("Step two in progress ...\n\n")
+        ret = avgSARStep2(massArray_c, localSARArray_c, avgSARArray_c, voxStatusArray_c, targetMass_c, n_points_c)
+
+        avgSARArray = np.array(avgSARArray_c).reshape(n_points)[original_slices[0], original_slices[1], original_slices[2]]
+        voxStatusArray = np.array(voxStatusArray_c).reshape(n_points)[original_slices[0], original_slices[1], original_slices[2]].astype(float)
+        localSARArray = localSARArray[original_slices[0], original_slices[1], original_slices[2]]
+
+        return avgSARArray, voxStatusArray
     
     def compQMatrix(self, point, freq, z0_ports=50, elCond_key=None):
         
