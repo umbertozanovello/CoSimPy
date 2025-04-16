@@ -269,7 +269,11 @@ class EM_Field():
             raise EM_FieldPropertiesError(f"{massDensity_key} has not been found among the keys of the properties dictionary", "spatialAverageSAR")
         
         massDensity = self.getProperty(massDensity_key)
-            
+        
+        if backgroundIdx not in self.__props["idxs"]:
+            raise EM_FieldPropertiesError("%d has not been found among the indexes stored in the 'idxs' key of the properties dictionary", "spatialAverageSAR")
+        
+
         if self.__e_field is None:
             raise EM_FieldError("No e field property is specified for the EM_Field instance. Power density cannot be computed", "spatialAverageSAR")
         
@@ -301,12 +305,10 @@ class EM_Field():
         massArray = voxVols * massDensity.reshape(self.__nPoints,order='F')
 
         localSARArray = self.compPowDens(elCond_key, p_inc)[f_idx].reshape(self.__nPoints,order='F')
-        localSARArray[np.isnan(massArray)] = np.nan # Not really needeed ...
         additionalBackground = np.array(additionalBackground)
         n_points = self.__nPoints + additionalBackground*2
 
-        voxStatusArray = np.ones_like(massArray, dtype=int) # INVALID=0, UNUSED=1, USED=2, VALID=3
-
+        voxStatusArray = np.ones_like(massArray, dtype=int) # INVALID=0, UNUSED=1, USED=2, VALID=3    
         original_slices = []
         for i in range(3):
             original_slices.append(slice(additionalBackground[i],additionalBackground[i]+self.__nPoints[i]))
@@ -320,17 +322,13 @@ class EM_Field():
             
             box[original_slices[0], original_slices[1], original_slices[2]] = localSARArray
             localSARArray = np.copy(box)
-            localSARArray[np.isnan(localSARArray)] = np.nan
+            localSARArray[np.isnan(localSARArray)] = 0
 
             box[original_slices[0], original_slices[1], original_slices[2]] = voxStatusArray
             voxStatusArray = np.copy(box)
         
         voxStatusArray[np.isnan(massArray)] = 0
         voxStatusArray = voxStatusArray.astype(int)
-
-        print(localSARArray.shape)
-        print(massArray.shape)
-        print(voxStatusArray.shape)
 
         # ctypes definitions
 
@@ -353,7 +351,8 @@ class EM_Field():
         voxStatusArray = np.array(voxStatusArray_c).reshape(n_points)[original_slices[0], original_slices[1], original_slices[2]].astype(float)
         localSARArray = localSARArray[original_slices[0], original_slices[1], original_slices[2]]
 
-        return avgSARArray, voxStatusArray
+
+        return avgSARArray.flatten(order='F'), voxStatusArray.flatten(order='F')
     
     def compQMatrix(self, point, freq, z0_ports=50, elCond_key=None):
         
