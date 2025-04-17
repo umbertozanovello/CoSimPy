@@ -33,11 +33,6 @@ With [pip](https://pypi.org/project/pip/):
 pip install cosimpy
 ```
 
-With [anaconda](https://www.anaconda.com/products/individual):
-```
-conda install --channel umbertopy cosimpy
-```
-
 ## Deployment
 
 After installation, the library can be imported as:
