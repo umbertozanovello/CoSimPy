@@ -5,15 +5,24 @@ filename: News&Versions.md
 --- 
 
 # News
-A new minor version of CoSimPy is available. Version 1.4.1 comes along with the following modifications:
- - Modified a bug in importFields_cst method
- - Solved a bug due to newer matplotlib version (>3.4)
- - Now it is required a matplotlib version higher than 3.4
+A new major version of CoSimPy is available. Version 2.0.0 comes along with the following modifications:
+- Added the compVOP method in the EM_Field class to compute the virtual observation points according to the procedure proposed in the paper "Eichfelder G, Gebhardt M. Local specific absorption rate control for parallel transmission by virtual observation points. Magn Reson Med. 2011 Nov;66(5):1468-76. doi: 10.1002/mrm.22927"
+- Added importFields_hfss method in the EM_Field class to import fields from HFSS
+- Improved the way the filenames of the EM field sources are passed to the importFields_cst method of the EM_Field class
+- Added spatialAverageSAR method in EM_Field class to compute the spatial average SAR complying with the procedure introduced in the the IEC/IEEE 62704-1 standard
+- Solved different bugs
+
 ___
 
 A scientific [paper](https://www.sciencedirect.com/science/article/pii/S0169260722000694) related to CoSimPy has been published in "Computer Methods and Programs in Biomedicine" journal. In the paper, the main features of CoSimPy are shown and its performance is tested again full-wave EM simulations.
 
 # Version Hystory
+## v 1.4.1 (November 4, 2023)
+A minor version of CoSimPy coming along with the following modifications:
+ - Modified a bug in importFields_cst method
+ - Solved a bug due to newer matplotlib version (>3.4)
+ - Now it is required a matplotlib version higher than 3.4
+ - 
 ## v 1.4.0 (May 17, 2022)
 
  The way the additional properties are managed in the EM_Field class has been substantially changed. From the user side, this will affect the following methods:
