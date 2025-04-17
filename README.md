@@ -26,7 +26,7 @@ The library has been developed with Python 3.7 and successfully tested down to P
 
 ### Prerequisites
 
-The library uses the follwong additional packages:
+The library uses the following additional packages:
 
 - [numpy](https://numpy.org/) (>=1.15.2)
 - [matplotlib](https://matplotlib.org/) (>=3.4.0)
@@ -37,7 +37,7 @@ The package versions reported in brackets represent the oldest releases with whi
 
 ### Installing
 
-With [pip](https://pypi.org/project/pip/):
+With [pip](https://pypi.org/project/cosimpy/):
 ```
 pip install cosimpy
 ```
