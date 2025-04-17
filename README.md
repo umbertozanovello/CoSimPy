@@ -2,6 +2,15 @@
 
 CoSimPy is an open source Python library aiming to combine results from electromagnetic (EM) simulation with circuits analysis through a cosimulation environment.
 
+The library is built on three classes:
+* `S_Matrix` class : Management of S Matrix operations
+* `EM_Field` class : Management of Electromagnetic Field (EM) operations
+* `RF_Coil` class : Interface between S_Matrix and RF_Coil classes
+
+These three classes represent the core of CoSimPy and are included in a larger framework designed to manage custom exceptions and external contributions thorugh a testing pipeline involving  [pytest](https://docs.pytest.org/en/stable/contents.html) and [tox](https://tox.wiki/en/latest/). 
+
+![](./docs/images/framework.png)
+
 ## Summary
 
   - [Getting Started](#getting-started)
@@ -131,7 +140,7 @@ In the "CoSimPy-Demo.ipynb" script inside the "examples/cosimpy_demonstration" f
 
 ## Test
 
-For testing the library, [pytest](https://docs.pytest.org/en/6.2.x/) is required.<br>
+For testing the library, [pytest](https://docs.pytest.org/en/stable/contents.html) is required.<br>
 After installing CoSimPy, download the "test" folder and, from a terminal, execute:
 ```
 cd path_to_test_folder/test
