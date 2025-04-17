@@ -4,6 +4,10 @@ import h5py
 from scipy.io import loadmat
 import warnings
 from copy import copy
+import re
+from os import listdir
+from os.path import isfile, join
+from ctypes import CDLL, c_int, c_double
 from .Exceptions import EM_FieldError, EM_FieldArrayError, EM_FieldFrequenciesError, EM_FieldPointsError,\
     EM_FieldIOError, EM_FieldPropertiesError
 
@@ -212,7 +216,7 @@ class EM_Field():
         if not isinstance(elCond_key, str):
             raise EM_FieldError("elCond_key has to be a string relevant to the key of the electrical conductivity in the properties dictionary", "compPowDens")
         if elCond_key not in self.__props.keys():
-            raise EM_FieldPropertiesError("%s has not been found among the keys of the properties dictionary", "compPowDens")
+            raise EM_FieldPropertiesError(f"{elCond_key} has not been found among the keys of the properties dictionary", "compPowDens")
         
         elCond = self.getProperty(elCond_key)
             
@@ -250,6 +254,105 @@ class EM_Field():
         
         return depPow
     
+    def spatialAverageSAR(self, targetMass, voxVols, elCond_key, massDensity_key, p_inc, freq, step1_libPath, step2_libPath, backgroundIdx = None, additionalBackground=[0,0,0]):
+
+        if not isinstance(elCond_key, str):
+            raise EM_FieldError("elCond_key has to be a string relevant to the key of the electrical conductivity in the properties dictionary", "spatialAverageSAR")
+        if elCond_key not in self.__props.keys():
+            raise EM_FieldPropertiesError("%s has not been found among the keys of the properties dictionary", "spatialAverageSAR")
+        
+        elCond = self.getProperty(elCond_key)
+
+        if not isinstance(massDensity_key, str):
+            raise EM_FieldError("massDensity_key has to be a string relevant to the key of the mass density in the properties dictionary", "spatialAverageSAR")
+        if massDensity_key not in self.__props.keys():
+            raise EM_FieldPropertiesError(f"{massDensity_key} has not been found among the keys of the properties dictionary", "spatialAverageSAR")
+        
+        massDensity = self.getProperty(massDensity_key)
+        
+        if backgroundIdx not in self.__props["idxs"]:
+            raise EM_FieldPropertiesError("%d has not been found among the indexes stored in the 'idxs' key of the properties dictionary", "spatialAverageSAR")
+        
+
+        if self.__e_field is None:
+            raise EM_FieldError("No e field property is specified for the EM_Field instance. Power density cannot be computed", "spatialAverageSAR")
+        
+        if not isinstance(p_inc, np.ndarray) and not isinstance(p_inc, list):
+            raise EM_FieldError("p_inc can only be numpy ndarray or a list", "spatialAverageSAR")
+        else:
+            p_inc = np.array(p_inc)
+        if p_inc.size != self.__nPorts:
+            raise EM_FieldError("p_inc has to be a self.nPorts length list or numpy ndarray", "spatialAverageSAR")
+        
+        f_idx = np.where(self.__f==freq)[0]
+        if f_idx.size == 0:
+            raise EM_FieldFrequenciesError("No E field for the specified frequency", "compQMatrix")
+        else:
+            f_idx = f_idx[0]
+
+        # Loading the libraries
+        step1_libPath = CDLL(step1_libPath)
+        step2_libPath = CDLL(step2_libPath)
+
+        avgSARStep1 = step1_libPath.main
+        avgSARStep1.restype = c_int
+        avgSARStep2 = step2_libPath.main
+        avgSARStep2.restype = c_int
+
+        # Preparing the numpy data
+        if backgroundIdx is not None:
+            massDensity[self.__props["idxs"]==backgroundIdx] = np.nan # I set to nan density values in background voxels
+        massArray = voxVols * massDensity.reshape(self.__nPoints,order='F')
+
+        localSARArray = self.compPowDens(elCond_key, p_inc)[f_idx].reshape(self.__nPoints,order='F')
+        additionalBackground = np.array(additionalBackground)
+        n_points = self.__nPoints + additionalBackground*2
+
+        voxStatusArray = np.ones_like(massArray, dtype=int) # INVALID=0, UNUSED=1, USED=2, VALID=3    
+        original_slices = []
+        for i in range(3):
+            original_slices.append(slice(additionalBackground[i],additionalBackground[i]+self.__nPoints[i]))
+
+        if ((additionalBackground)>0).any():
+            
+            
+            box = np.full(n_points, np.nan)
+            box[original_slices[0], original_slices[1], original_slices[2]] = massArray
+            massArray = np.copy(box)
+            
+            box[original_slices[0], original_slices[1], original_slices[2]] = localSARArray
+            localSARArray = np.copy(box)
+            localSARArray[np.isnan(localSARArray)] = 0
+
+            box[original_slices[0], original_slices[1], original_slices[2]] = voxStatusArray
+            voxStatusArray = np.copy(box)
+        
+        voxStatusArray[np.isnan(massArray)] = 0
+        voxStatusArray = voxStatusArray.astype(int)
+
+        # ctypes definitions
+
+        voxStatusArray_c = (c_int * voxStatusArray.size)(*voxStatusArray.flatten())
+        massArray_c = (c_double * massArray.size)(*massArray.flatten())
+        avgSARArray_c = (c_double * massArray.size)(*(np.zeros(massArray.size)))
+        localSARArray_c = (c_double * localSARArray.size)(*localSARArray.flatten())
+        n_points_c = (c_int * 3)(*n_points)
+        targetMass_c = c_double(targetMass)
+
+        # C functions execution
+        
+        print("Step one in progress ...\n\n")
+        ret = avgSARStep1(massArray_c, localSARArray_c, avgSARArray_c, voxStatusArray_c, targetMass_c, n_points_c)
+
+        print("Step two in progress ...\n\n")
+        ret = avgSARStep2(massArray_c, localSARArray_c, avgSARArray_c, voxStatusArray_c, targetMass_c, n_points_c)
+
+        avgSARArray = np.array(avgSARArray_c).reshape(n_points)[original_slices[0], original_slices[1], original_slices[2]]
+        voxStatusArray = np.array(voxStatusArray_c).reshape(n_points)[original_slices[0], original_slices[1], original_slices[2]].astype(float)
+        localSARArray = localSARArray[original_slices[0], original_slices[1], original_slices[2]]
+
+
+        return avgSARArray.flatten(order='F'), voxStatusArray.flatten(order='F')
     
     def compQMatrix(self, point, freq, z0_ports=50, elCond_key=None):
         
@@ -294,6 +397,214 @@ class EM_Field():
         
         return q_matrix
 
+    
+    def compVOP(self, freq, u_max_r, z0_ports=50, elCond_key=None, avg_rad=1):
+        """
+        Implementation of the code suggested in the paper:
+        Local Specific Absorption Rate Control for Parallel Transmission by Virtual Observation Points
+        (10.1002/mrm.22927)
+        
+        u_max_r : float
+            allowed maximum overestimation of the VOPs with respect to the maximum eigenvalue of the Q matrices of the model (e.g. 0.05 means that the overestimation will be the 5 % of the maximum eigenvalue)
+        """
+        def volume_average(omega_mat, avg_rad, nPoints):
+            """
+            
+            Parameters
+            ----------
+            omega_mat : n_points x n_port x n_port numpy ndarray
+                n_set of matrices ordered as Fortran (first index faster)
+            avg_rad : float
+                the ratio between the radius of the averaging sphere and the voxel dimension
+            nPoints : 3-element list
+                the voxels along each Cartesian direction (prod(nPoints) = n_points)
+
+            Returns
+            -------
+            avg_omega_mat : n_points x n_port x n_port numpy ndarray
+                the Omega matrices averaged inside the given sphere
+            """
+           
+            omega_mat = omega_mat.reshape(list(nPoints)+list(omega_mat.shape[1:]), order='F')
+            avg_omega_mat = np.full_like(omega_mat, np.nan)
+            index = 0
+            x = np.arange(nPoints[0])
+            y = np.arange(nPoints[1])
+            z = np.arange(nPoints[2])
+            
+            X, Y, Z = np.meshgrid(x,y,z)
+            dist = np.sqrt(X**2 + Y**2 + Z**2)
+            
+            mask = (dist <= avg_rad)
+            print("\nAveraging:\n")
+            for k in np.arange(nPoints[2]):
+                print("\rPercentage: %d %%" %(k/nPoints[2]*100), end='')
+                if k >= avg_rad:
+                    k_idxs = slice(k-avg_rad, k+avg_rad)
+                else:
+                    k_idxs = slice(0, k+avg_rad)
+                for j in np.arange(nPoints[1]):
+                    if j >= avg_rad:
+                        j_idxs = slice(j-avg_rad, j+avg_rad)
+                    else:
+                        j_idxs = slice(0, j+avg_rad)
+                    for i in np.arange(nPoints[0]):
+                        if i >= avg_rad:
+                            i_idxs = slice(i-avg_rad, i+avg_rad)
+                        else:
+                            i_idxs = slice(0, i+avg_rad)
+                        mask_red = mask[i_idxs, j_idxs, k_idxs]
+                        if not np.isnan(omega_mat[i,j,k]).all():
+                            avg_omega_mat[i,j,k] = np.nanmean(omega_mat[i_idxs, j_idxs, k_idxs][mask_red], axis=0)
+                        index += 1
+                        mask = np.roll(mask,1,0)
+                    mask = np.roll(mask,1,1)
+                mask = np.roll(mask,1,2)
+                
+            return avg_omega_mat.reshape([-1,omega_mat.shape[-2],omega_mat.shape[-1]], order='F')
+        
+        def findMatrixA(B_ask, sorted_Omega_mat, u_max):
+            """
+
+            Parameters
+            ----------
+            B_ask : n_port x n_port numpy ndarray
+                B* of the reference paper: The matrix of the whole set Omega of the cluster iteration 
+                with the highest spectral norm
+            sorted_Omega_mat : n_set x n_port x n_port numpy ndarray
+                n_set matrices of the Omega set relevant to the cluster iteration and sorted accoridng lambda_min(B*-B) (step 2 of reference paper)
+            u_max : float
+                the maximum spectral norm of Z* before a new cluster investigation should be performed
+
+            Returns
+            -------
+            A : n_port x n_port numpy ndarray representing the matrix A that dominates all the matrices in the cluster
+            
+            cluster_last_index : index of Omega_mat representing the first matrix that cannot be added to the cluster since
+                                 it would entail ||Z*||>u
+
+            """
+
+            Z_ask = np.zeros_like(B_ask)
+            i = 0
+            u = 0
+            while u <= u_max and i < sorted_Omega_mat.shape[0]:
+                eig_vals, eig_vec = np.linalg.eigh(B_ask - sorted_Omega_mat[i])
+                eig_vals[eig_vals>0] = 0
+                eig_vals = -1 * eig_vals
+                Q_m = eig_vec @ np.diag(eig_vals) @ eig_vec.conj().T
+                Z_ask_temp = Z_ask + Q_m
+                u = np.linalg.eigh(Z_ask_temp)[0][-1]
+                if u <= u_max:
+                    Z_ask = Z_ask_temp
+                    i +=1
+                    
+            return B_ask+Z_ask, i
+
+        def sortOmega_mat(unsorted_Omega_mat):
+            """
+
+            Parameters
+            ----------
+            unsorted_Omega_mat : n_set x n_port x n_port numpy ndarray
+                n_set matrices of the Omega set relevant to the cluster iteration still unsorted
+
+            Returns
+            -------
+            B_ask : n_port x n_port numpy ndarray
+                B* of the reference paper: The matrix of the whole set Omega of the cluster iteration 
+                with the highest spectral norm
+            
+            sorted_Omega_mat : n_set x n_port x n_port numpy ndarray
+               the unsorted_Omega_mat matrices sorted according lambda_min(B*-B) (step 2 of reference paper)
+            
+            sort_indices : n_set numpy ndarray
+                if i=sort_indices[n], sorted_Omega_mat[n] = unsorted_Omega_mat[i]
+            """
+            
+            max_eigvals = np.linalg.eigvalsh(unsorted_Omega_mat)[:,-1] # The array of maximum eigenvalues of the matrices in unsorted_Omega_mat
+            B_ask = unsorted_Omega_mat[np.argmax(max_eigvals)]
+                
+            serv_mats = B_ask[None,...] - unsorted_Omega_mat
+            min_serv_eigvals = np.linalg.eigvalsh(serv_mats)[:,0] # The array of minimum eigenvalues of the matrices in unsorted_Omega_mat
+            sort_indices = np.argsort(min_serv_eigvals)[::-1]
+            sorted_Omega_mat = unsorted_Omega_mat[sort_indices]
+            
+            return B_ask, sorted_Omega_mat, sort_indices
+        
+        
+        if self.__e_field is None:
+            raise EM_FieldError("No e field property is specified for the EM_Field instance. Power density cannot be computed", "compQMatrix")
+
+        f_idx = np.where(self.__f==freq)[0]
+        if f_idx.size == 0:
+            raise EM_FieldFrequenciesError("No E field for the specified frequency", "compVOP")
+        else:
+            f_idx = f_idx[0]
+             
+        if elCond_key is not None and not isinstance(elCond_key, str):
+            raise EM_FieldError("elCond_key has to be None or a string relevant to the key of the electrical conductivity in the properties dictionary", "compQMatrix")
+        if elCond_key is None: #No electrical conductivity is passed as argument and a relevant property is not present
+            elCond = np.ones(np.prod(self.nPoints))
+        else:
+            elCond = self.getProperty(elCond_key)
+            
+        if not isinstance(z0_ports, np.ndarray) and not isinstance(z0_ports, list) and not isinstance(z0_ports, int) and not isinstance(z0_ports, float):
+            raise EM_FieldError("z0_ports must be a self.nPorts real value elements list or numpy ndarray or single scalar value", "compQMatrix")
+        elif isinstance(z0_ports, int) or isinstance(z0_ports, float):
+            z0_ports = np.ones(self.__nPorts) * np.abs(z0_ports.real)
+        elif len(z0_ports) != self.__nPorts:
+            raise EM_FieldError("z0_ports must be a self.nPorts real value elements list or numpy ndarray or single scalar value", "compQMatrix")
+        else:
+            z0_ports = np.abs(np.array(z0_ports).real)
+             
+        e_field = np.copy(self.e_field[f_idx,...])
+        e_field /= np.sqrt(z0_ports[:,None, None]) # e_field_pnt is referred to 1 Volt incident voltage in relevant ports
+            
+        q_mats = np.einsum("nkj,mkj->jnm", e_field, e_field.conj())
+        
+        q_mats *= elCond[:,None, None]
+        
+        if avg_rad != 1:
+            q_mats = volume_average(q_mats, avg_rad, self.nPoints)
+        
+        u_max = np.nanmax(np.linalg.eigvalsh(q_mats)[:,-1]) * u_max_r
+        
+        clustered_points = 0 # Number of clustered points
+        n_cluster = 0 # Number of identified clusters
+        A_mats = np.empty([0,q_mats.shape[1], q_mats.shape[2]])
+        cluster_array  = np.full(q_mats.shape[0], np.nan)
+        
+        not_nan_indices = np.any(np.logical_not(np.isnan(q_mats)),axis=(1,2))
+        sorted_Omega_mat = q_mats[not_nan_indices]
+        not_nan_cluster_array = np.zeros(sorted_Omega_mat.shape[0], dtype=int)
+        
+        sort_indices_orig = np.arange(q_mats.shape[0]) # Indices of the sorted Omega matrices with respect to the element of the original_Omega_mat
+        last_index_k0 = 0 # Index of the first matrix not clustered in the previous iteration
+        
+        print("\n\nClusterisation:\n")
+        while clustered_points < q_mats[not_nan_indices].shape[0]:
+            print("\rCluster n. %d" %n_cluster, end='')
+            
+            B_ask, sorted_Omega_mat, sort_indices = sortOmega_mat(sorted_Omega_mat[last_index_k0:])
+            
+            sort_indices_orig = sort_indices_orig[last_index_k0:][sort_indices]
+            
+            A, last_index_k1 = findMatrixA(B_ask, sorted_Omega_mat, u_max)
+            
+            A_mats = np.append(A_mats, A[None,...],axis=0)
+            
+            not_nan_cluster_array[sort_indices_orig[:last_index_k1]] = n_cluster
+            clustered_points += last_index_k1
+            n_cluster += 1
+            last_index_k0= last_index_k1
+
+        cluster_array[not_nan_indices] = not_nan_cluster_array
+        
+        print("\n\n%d total clusters identified" %n_cluster)
+        
+        return A_mats, cluster_array
+    
     
     def plotProperty(self, prop_key, plane, sliceIdx, vmin=None, vmax=None):
         
@@ -439,123 +750,6 @@ class EM_Field():
             cbar.ax.set_ylabel("E field (V/m)")
         
         return fig
-    
-    
-    def plotB(self, comp, freq, port, plane, sliceIdx, vmin=None, vmax=None):
-        
-        warnings.warn("This method has been replaced by the 'plotEMField' method and will be removed in the future versions of CoSimPy"\
-                      "Please, use the 'plotEMField' with the following options: em_field=%s, ports=[%d]"%("b_field", port), DeprecationWarning)
-
-        if self.__b_field is None:
-            raise EM_FieldError("No b_field property is specified for the EM_Field instance", "plotB")
-            
-        f_idx = np.where(self.__f==freq)[0]
-        if f_idx.size == 0:
-            raise EM_FieldError("No B field for the specified frequency", "plotB")
-        else:
-            f_idx = f_idx[0]
-        
-        if port not in np.arange(self.__nPorts) + 1:
-            raise EM_FieldError("No B field for the specified port", "plotB")
-            
-        if comp not in ['b1+', 'b1-']:
-            b = self.__b_field[f_idx, port-1,:,:]
-            
-            if comp.lower() == "x":
-                b = np.abs(b[0,:])
-            elif comp.lower() == 'y':
-                b = np.abs(b[1,:])
-            elif comp.lower() == 'z':
-                b = np.abs(b[2,:])
-            elif comp.lower() == 'mag':
-                b = np.linalg.norm(b,axis=0)   
-            else:
-                raise EM_FieldError("comp must take one of the following values: 'mag', 'x', 'y', 'z', 'b1+', 'b1-'", "plotB")
-        else:
-            b = self.compSensitivities()
-            b = b[f_idx, port-1,:,:]
-            
-            if comp == "b1+":
-                b = np.abs(b[0,:])
-            else:
-                b = np.abs(b[1,:])
-        
-        b = np.reshape(b, self.__nPoints, order='F')
-        
-        plt.figure("B field, Frequency %.2f MHz, Port %d, Plane %s, Index %d" %(freq*1e-6, port, plane, sliceIdx))        
-        
-        if plane == 'xy':
-            plt.imshow(1e6*b[:,:,sliceIdx].T,vmin=vmin,vmax=vmax)
-            plt.xlabel("x")
-            plt.ylabel("y")
-        elif plane == 'xz':
-            plt.imshow(1e6*b[:,sliceIdx,:].T,vmin=vmin,vmax=vmax)
-            plt.xlabel("x")
-            plt.ylabel("z")
-        elif plane == 'yz':
-            plt.imshow(1e6*b[sliceIdx,:,:].T,vmin=vmin,vmax=vmax)
-            plt.xlabel("y")
-            plt.ylabel("z")
-        
-        plt.title("Port %d: %s component" %(port, comp))
-        cbar = plt.colorbar()
-        cbar.ax.set_ylabel("B field ($\mu$T)")
-        
-        
-    def plotE(self, comp, freq, port, plane, sliceIdx, vmin=None, vmax=None):
-        
-        warnings.warn("This method has been replaced by the 'plotEMField' method and will be removed in the future versions of CoSimPy"\
-              "Please, use the 'plotEMField' with the following options: em_field=%s, ports=[%d]"%("e_field", port), DeprecationWarning)
-
-
-        if self.__e_field is None:
-            raise EM_FieldError("No e_field property is specified for the EM_Field instance", "plotE")
-            
-        f_idx = np.where(self.__f==freq)[0]
-        if f_idx.size == 0:
-            raise EM_FieldError("No E field for the specified frequency", "plotE")
-        else:
-            f_idx = f_idx[0]
-        
-        if port not in np.arange(self.__nPorts) + 1:
-            raise EM_FieldError("No E field for the specified port", "plotE")
-            
-        if comp != "mag":
-            e = self.__e_field[f_idx, port-1,:,:]
-            
-            if comp == "x":
-                e = np.abs(e[0,:])
-            elif comp == 'y':
-                e = np.abs(e[1,:])
-            elif comp == 'z':
-                e = np.abs(e[2,:])
-            else:
-                raise EM_FieldError("comp must take one of the following values: 'mag', 'x', 'y', 'z', 'mag'", "plotE")
-        else:
-            e = np.sqrt(np.abs(self.__e_field[f_idx, port-1,0,:])**2 + np.abs(self.__e_field[f_idx, port-1,1,:])**2 + np.abs(self.__e_field[f_idx, port-1,2,:])**2)
-        
-        e = np.reshape(e, self.__nPoints, order='F')
-        
-        plt.figure("E field, Frequency %.2f MHz, Port %d, Plane %s, Index %d" %(freq*1e-6, port, plane, sliceIdx))
-        
-        if plane == 'xy':
-            plt.imshow(e[:,:,sliceIdx].T,vmin=vmin,vmax=vmax)
-            plt.xlabel("x")
-            plt.ylabel("y")
-        elif plane == 'xz':
-            plt.imshow(e[:,sliceIdx,:].T,vmin=vmin,vmax=vmax)
-            plt.xlabel("x")
-            plt.ylabel("z")
-        elif plane == 'yz':
-            plt.imshow(e[sliceIdx,:,:].T,vmin=vmin,vmax=vmax)
-            plt.xlabel("y")
-            plt.ylabel("z")
-        
-        plt.title("Port %d: %s component" %(port, comp))
-        cbar = plt.colorbar()
-        cbar.ax.set_ylabel("E field (V/m)")
-        
-    
     
     def exportXMF(self, filename):
         
@@ -734,14 +928,14 @@ class EM_Field():
     
     
     @classmethod
-    def importFields_cst(cls, directory, freqs, nPorts, nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, fileType = 'ascii', col_ascii_order = 0, props={}):
+    def importFields_cst(cls, directory, freqUnit="MHz", eFieldRefString="efield_<f>_port<p>.h5", bFieldRefString="bfield_<f>_port<p>.h5", nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, fileType = 'ascii', col_ascii_order = 0, props={}):
 
         if not imp_efield and not imp_bfield:
             raise EM_FieldIOError("At least one among imp_efield and imp_bfield has to be True")
         if nPoints is not None: 
             EM_FieldPointsError.check(nPoints, "importFields_cst")
-        if not isinstance(nPorts, int) or nPorts < 1:
-            raise  EM_FieldIOError("nPorts has to be an integer higher than zero")
+        if freqUnit.lower() not in ["hz", "khz", "mhz", "ghz"]:
+            raise  EM_FieldIOError("freqUnit can only be 'Hz', 'kHz', 'MHz' or 'GHz'")
         if fileType.lower() not in ["ascii", "hdf5"]:
             raise  EM_FieldIOError("fileType can only be 'ascii' or 'hdf5'")
         if pkORrms.lower() not in ["pk", "rms"]:
@@ -750,13 +944,29 @@ class EM_Field():
             raise  EM_FieldIOError("col_ascii_order can take 0 (Re_x, Re_y, Re_z, Im_x, Im_y, Im_z) or 1 (Re_x, Im_x, Re_y, Im_y, Re_z, Im_z) values")
         
         try:
-            
+            # Retrieving frequency and ports from files
+            if imp_efield:
+                efield_freqs, efield_n_ports, efield_filenames = cls.__readPortFreqsFromFilenames(directory, eFieldRefString)
+            if imp_bfield:
+                bfield_freqs, bfield_n_ports, bfield_filenames = cls.__readPortFreqsFromFilenames(directory, bFieldRefString)
+
+            if imp_efield and imp_bfield:
+                if not np.equal(efield_freqs, bfield_freqs).all():
+                    raise EM_FieldIOError("The electric field and magnetic field have to be defined at the same frequency values", "importFields_cst")
+
+            if imp_efield:
+                nPorts = efield_n_ports
+                freqs = efield_freqs
+            else:
+                nPorts = bfield_n_ports
+                freqs = bfield_freqs
+
             if nPoints is None and fileType == "ascii": #I try to evaluate nPoints
                 
                 if imp_efield:
-                    x,y,z = np.loadtxt(directory+"/efield_%s_port1.txt"%(freqs[0]), skiprows=2, unpack=True, usecols=(0,1,2))
+                    x,y,z = np.loadtxt(efield_filenames[0,0], skiprows=2, unpack=True, usecols=(0,1,2))
                 else:
-                    x,y,z = np.loadtxt(directory+"/bfield_%s_port1.txt"%(freqs[0]), skiprows=2, unpack=True, usecols=(0,1,2))
+                    x,y,z = np.loadtxt(bfield_filenames[0,0], skiprows=2, unpack=True, usecols=(0,1,2))
                 
                 orig_len = len(x) #Total number of points
                 
@@ -771,11 +981,11 @@ class EM_Field():
     
             elif nPoints is None and fileType == "hdf5":
                 if imp_efield:
-                    filename = "/efield_%s_port1.h5"%(freqs[0])
+                    filename = efield_filenames[0,0]
                 else:
-                    filename = "/bfield_%s_port1.h5"%(freqs[0])
+                    filename = bfield_filenames[0,0]
                     
-                with h5py.File(directory+filename, "r") as f:
+                with h5py.File(filename, "r") as f:
                     x = np.array(f['Mesh line x'])
                     y = np.array(f['Mesh line y'])
                     z = np.array(f['Mesh line z'])
@@ -812,14 +1022,14 @@ class EM_Field():
                             re_cols = (3,5,7)
                             im_cols = (4,6,8)
                         if imp_efield:
-                            e_real = np.loadtxt(directory+"/efield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=re_cols)
-                            e_imag = np.loadtxt(directory+"/efield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=im_cols)
+                            e_real = np.loadtxt(efield_filenames[idx_f,port], skiprows=2, usecols=re_cols)
+                            e_imag = np.loadtxt(efield_filenames[idx_f,port], skiprows=2, usecols=im_cols)
                             if e_real.shape[0] != n:
                                 raise EM_FieldIOError("At least one of e_field files is not compatible with the evaluated or passed nPoints", "importFields_cst")
                             e_field[idx_f, port, :, :] = (e_real+1j*e_imag).T
                         if imp_bfield:
-                            b_real = np.loadtxt(directory+"/bfield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=re_cols)
-                            b_imag = np.loadtxt(directory+"/bfield_%s_port%d.txt"%(f,port+1), skiprows=2, usecols=im_cols)
+                            b_real = np.loadtxt(bfield_filenames[idx_f,port], skiprows=2, usecols=re_cols)
+                            b_imag = np.loadtxt(bfield_filenames[idx_f,port], skiprows=2, usecols=im_cols)
                             if b_real.shape[0] != n:
                                 raise EM_FieldIOError("At least one of b_field files is not compatible with the evaluated or passed nPoints", "importFields_cst")
                             b_field[idx_f, port, :, :] = (b_real+1j*b_imag).T
@@ -834,8 +1044,8 @@ class EM_Field():
                         print("\r\tImporting port%d fields"%(port+1), end='', flush=True)
                         if imp_efield:
                             
-                            filename = "/efield_%s_port%d.h5"%(f,port+1)
-                            with h5py.File(directory + filename, "r") as field_file:
+                            filename = efield_filenames[idx_f,port]
+                            with h5py.File(filename, "r") as field_file:
                                 e_field_raw = np.array(field_file['E-Field'])
                                 x = np.array(field_file['Mesh line x'])
                                 y = np.array(field_file['Mesh line y'])
@@ -850,8 +1060,8 @@ class EM_Field():
                         
                         if imp_bfield:
                             
-                            filename = "/bfield_%s_port%d.h5"%(f,port+1)
-                            with h5py.File(directory + filename, "r") as field_file:
+                            filename = bfield_filenames[idx_f,port]
+                            with h5py.File(filename, "r") as field_file:
                                 b_field_raw = np.array(field_file['H-Field']) #b_field is an H field and will become  field when multiplied by b_multCoeff
                                 x = np.array(field_file['Mesh line x'])
                                 y = np.array(field_file['Mesh line y'])
@@ -865,12 +1075,22 @@ class EM_Field():
                             b_field[idx_f, port, :, :] = (b_flat[:,:,0] + 1j*b_flat[:,:,1]).T
                         
                     print("\n")
+
             if imp_efield:
                 e_field = np.sqrt(1/Pinc_ref) * rmsCoeff * e_field #cst exported field values are peak values
             if imp_bfield:
                 b_field = b_multCoeff * np.sqrt(1/Pinc_ref) * rmsCoeff * b_field #cst exported field values are peak values
             
-            freqs = 1e6*np.array(freqs).astype(float)
+            if freqUnit.lower() == "hz":
+                f_multiplier = 1
+            elif freqUnit.lower() == "khz":
+                f_multiplier = 1e3
+            elif freqUnit.lower() == "mhz":
+                f_multiplier = 1e6
+            elif freqUnit.lower() == "ghz":
+                f_multiplier = 1e9
+
+            freqs = f_multiplier*np.array(freqs).astype(float)
             
             return cls(freqs, nPoints, b_field, e_field, props)
         
@@ -880,14 +1100,13 @@ class EM_Field():
             else:
                 raise e
 
-
     @classmethod
     def importFields_s4l(cls, directory, freqs, nPorts, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, props={}):
         
         if not imp_efield and not imp_bfield:
             raise EM_FieldIOError("At least one among imp_efield and imp_bfield has to be True", "importFields_s4l")
         if not isinstance(nPorts, int) or nPorts < 1:
-            raise  EM_FieldIOError("nPorts has to be an integer higher than zero")
+            raise  EM_FieldIOError("nPorts has to be an integer higher than zero", "importFields_s4l")
         if pkORrms.lower() not in ["pk", "rms"]:
             raise  EM_FieldIOError("pkORrms can only be 'pk or 'rms'", "importFields_s4l")
         
@@ -952,5 +1171,217 @@ class EM_Field():
         except Exception as e:
             if not isinstance(e, EM_FieldIOError): # I cast as EM_FieldIOError all other errors
                 raise EM_FieldIOError(e.args[-1], "importFields_s4l")
+            else:
+                raise e
+            
+    @classmethod
+    def importFields_hfss(cls, directory, freqUnit="MHz", eFieldRefString="efield_<f>_port<p>.fld", bFieldRefString="bfield_<f>_port<p>.fld", nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=True, col_ascii_order = 1, props={}):
+
+        if not imp_efield and not imp_bfield:
+            raise EM_FieldIOError("At least one among imp_efield and imp_bfield has to be True")
+        if nPoints is not None: 
+            EM_FieldPointsError.check(nPoints, "importFields_hfss")
+        if freqUnit.lower() not in ["hz", "khz", "mhz", "ghz"]:
+            raise  EM_FieldIOError("freqUnit can only be 'Hz', 'kHz', 'MHz' or 'GHz'")
+        if pkORrms.lower() not in ["pk", "rms"]:
+            raise  EM_FieldIOError("pkORrms can only be 'pk' or 'rms'", "importFields_hfss")
+        if col_ascii_order not in [0, 1]:
+            raise  EM_FieldIOError("col_ascii_order can take 0 (Re_x, Re_y, Re_z, Im_x, Im_y, Im_z) or 1 (Re_x, Im_x, Re_y, Im_y, Re_z, Im_z) values", "importFields_hfss")
+        
+        try:
+            # Retrieving frequency and ports from files
+            if imp_efield:
+                efield_freqs, efield_n_ports, efield_filenames = cls.__readPortFreqsFromFilenames(directory, eFieldRefString)
+            if imp_bfield:
+                bfield_freqs, bfield_n_ports, bfield_filenames = cls.__readPortFreqsFromFilenames(directory, bFieldRefString)
+
+            if imp_efield and imp_bfield:
+                if not np.equal(efield_freqs, bfield_freqs).all():
+                    raise EM_FieldIOError("The electric field and magnetic field have to be defined at the same frequency values", "importFields_hfss")
+
+            if imp_efield:
+                nPorts = efield_n_ports
+                freqs = efield_freqs
+            else:
+                nPorts = bfield_n_ports
+                freqs = bfield_freqs
+
+            if nPoints is None: #I try to evaluate nPoints
+                
+                if imp_efield:
+                    x,y,z = np.loadtxt(efield_filenames[0,0], skiprows=2, unpack=True, usecols=(0,1,2))
+                else:
+                    x,y,z = np.loadtxt(bfield_filenames[0,0], skiprows=2, unpack=True, usecols=(0,1,2))
+                
+                orig_len = len(x) #Total number of points
+                
+                x = np.unique(x)
+                y = np.unique(y)
+                z = np.unique(z)
+                
+                nPoints = [len(x), len(y), len(z)]
+                
+                if np.prod(nPoints) != orig_len:
+                    raise EM_FieldIOError("nPoints evaluation failed. Please specify its value in the method argument", "importFields_hfss")
+    
+            n = np.prod(nPoints)
+            
+            if imp_efield:
+                e_field = np.empty((len(freqs),nPorts,3,n), dtype="complex")
+            else:
+                e_field = None
+            if imp_bfield:
+                b_field = np.empty((len(freqs),nPorts,3,n), dtype="complex")
+            else:
+                b_field = None
+            
+            if pkORrms.lower() == "pk":
+                rmsCoeff = 1/np.sqrt(2)
+            else:
+                rmsCoeff = 1 
+        
+            for idx_f, f in enumerate(freqs):
+                print(f"Importing {f} {freqUnit} fields\n")
+    
+                for port in range(nPorts):
+                    print("\r\tImporting port%d fields"%(port+1), end='', flush=True)
+                    if col_ascii_order == 0:
+                        re_cols = (3,4,5)
+                        im_cols = (6,7,8)
+                    elif col_ascii_order == 1:
+                        re_cols = (3,5,7)
+                        im_cols = (4,6,8)
+                    if imp_efield:
+                        e_real = np.loadtxt(efield_filenames[idx_f,port], skiprows=2, usecols=re_cols)
+                        e_imag = np.loadtxt(efield_filenames[idx_f,port], skiprows=2, usecols=im_cols)
+                        if e_real.shape[0] != n:
+                            raise EM_FieldIOError("At least one of e_field files is not compatible with the evaluated or passed nPoints", "importFields_hfss")
+                        e_field[idx_f, port, :, :] = (e_real+1j*e_imag).T
+                    if imp_bfield:
+                        b_real = np.loadtxt(bfield_filenames[idx_f,port], skiprows=2, usecols=re_cols)
+                        b_imag = np.loadtxt(bfield_filenames[idx_f,port], skiprows=2, usecols=im_cols)
+                        if b_real.shape[0] != n:
+                            raise EM_FieldIOError("At least one of b_field files is not compatible with the evaluated or passed nPoints", "importFields_hfss")
+                        b_field[idx_f, port, :, :] = (b_real+1j*b_imag).T
+                
+                print("\n")
+            
+            if imp_efield:
+                e_field = e_field.reshape(tuple(e_field.shape[:-1])+tuple(nPoints))
+                e_field = e_field.swapaxes(-3,-1)
+                e_field = e_field.reshape(tuple(e_field.shape[:3])+tuple([-1]), order='C')
+                e_field = np.sqrt(1/Pinc_ref) * rmsCoeff * e_field
+            if imp_bfield:
+                b_field = b_field.reshape(tuple(b_field.shape[:-1])+tuple(nPoints), order='C')
+                b_field = b_field.swapaxes(-3,-1)
+                b_field = b_field.reshape(tuple(b_field.shape[:3])+tuple([-1]), order='C')
+                b_field = b_multCoeff * np.sqrt(1/Pinc_ref) * rmsCoeff * b_field
+            
+            if freqUnit.lower() == "hz":
+                f_multiplier = 1
+            elif freqUnit.lower() == "khz":
+                f_multiplier = 1e3
+            elif freqUnit.lower() == "mhz":
+                f_multiplier = 1e6
+            elif freqUnit.lower() == "ghz":
+                f_multiplier = 1e9
+
+            freqs = f_multiplier*np.array(freqs).astype(float)
+            
+            return cls(freqs, nPoints, b_field, e_field, props)
+        
+        except Exception as e:
+            if not isinstance(e, EM_FieldIOError): # I cast as EM_FieldIOError all other errors
+                raise EM_FieldIOError(e.args[-1], "importFields_hfss")
+            else:
+                raise e
+            
+    @classmethod
+    def __readPortFreqsFromFilenames(cls, directory, referenceString):
+        """Reads the frequency values and number of ports from filenames following the sintax specified in referenceString
+
+        Args:
+            directory (string): The path with the files containing the EM field
+            referenceString (string): The string with the sintax with which the EM field files have to be searched. <f> is for frequency value and <p> is for the port number
+
+        Returns:
+            freqs (numpy ndarray): Numpy ndarray with the frequency values
+            n_ports (int): The number of ports
+            filenames (numpy ndarray): nf x np numpy ndarray of strings listing the filenames to be loaded according to the information retreived. nf is the number of frequency values and np is the number of ports
+        """
+        # Preliminary info about the reference string
+
+        try:
+            pattern=re.compile("<p>")
+            span_p = pattern.search(referenceString)
+            if span_p is None:
+                raise EM_FieldIOError("The <p> has to be present into the reference string", "__readPortFreqsFromFilenames")
+            span_p = span_p.span()
+            
+            pattern=re.compile("<f>")
+            span_f = pattern.search(referenceString)
+            if span_f is None:
+                raise EM_FieldIOError("The <f> has to be present into the reference string", "__readPortFreqsFromFilenames")
+            span_f = span_f.span()
+
+            if span_f[0] < span_p[0]:
+                fp_order = 0 # First the frequency and then the port number
+                if referenceString[span_f[1]:span_p[0]].isnumeric() or referenceString[span_f[1]:span_p[0]] == "":
+                    raise EM_FieldIOError("<f> and <p> should be separated by at least one non numerical character", "__readPortFreqsFromFilenames")
+            else:
+                fp_order = 1 # First the port number and then the frequency
+                if referenceString[span_p[1]:span_f[0]].isnumeric() or referenceString[span_p[1]:span_f[0]] == "":
+                    raise EM_FieldIOError("<p> and <f> should be separated by at least one non numerical character", "__readPortFreqsFromFilenames")
+
+            # Recover number of ports and frequency values
+
+            a_candidates = []
+            b_candidates = []
+            decStrings = re.split("<f>|<p>", referenceString) # e.g., ["bField_," "MHz_Port", ".t"]
+            reg = re.compile(r'(%s)\d+(.\d+)?(%s)\d+(.\d+)?'%(decStrings[0], decStrings[1])) # e.g., reg = re.compile(r'(bField_)\d+(.\d)*(MHz_Port)\d+(.\d)*')
+                                                                                               # \d+(.\d+)? means at least one decimal and 0 or one repetition of a point with numbers (e.g., 4; 4.0; 44.00 ...)
+            for fileDirName in listdir(directory):
+                if isfile(join(directory,fileDirName)):
+                    match = reg.match(fileDirName)
+                    if  match is not None: # True if the filename has the format specified by the referenceString
+                        a_candidates.append(fileDirName[match.span(1)[1]:match.span(3)[0]]) # From the end of the first group of match to the start of the third group of match 
+                        b_candidates.append(fileDirName[match.span(3)[1]:match.span(0)[1]]) # From the end of the third group of match to the end of the last element of match 
+
+            if not a_candidates or not b_candidates:
+                if not a_candidates and not b_candidates:
+                    raise EM_FieldIOError("None of the files in the indicated directory comply with the reference string. Please, check the latter", "__readPortFreqsFromFilenames")
+
+
+            if fp_order == 0:
+                freq_string_candidates = np.array(a_candidates)
+                freq_candidates = np.array([float(i) for i in (freq_string_candidates)])
+                port_candidates = np.array([int(i) for i in (b_candidates)])
+            else:
+                port_candidates = np.array([int(i) for i in (a_candidates)])
+                freq_string_candidates = np.array(b_candidates)
+                freq_candidates = np.array([float(i) for i in (freq_string_candidates)])
+
+            freqs, freq_idxs = np.unique(freq_candidates, return_index=True)
+            n_ports = np.max(port_candidates)
+
+
+            #  Print Result
+
+            print(f"\n{referenceString}:\nN° detected frequency values: {freqs.size}\nN° detected ports: {n_ports}\n") 
+
+
+            # Create filenames to be loaded
+
+            filenames = np.empty((freqs.size,n_ports),dtype=object)
+
+            for i,f in enumerate(freq_string_candidates[freq_idxs]):
+                for p in range(n_ports):
+                    filenames[i,p] = join(directory,referenceString.replace("<f>",f).replace("<p>",str(p+1)))
+
+            return freqs, n_ports, filenames
+       
+        except Exception as e:
+            if not isinstance(e, EM_FieldIOError): # I cast as EM_FieldIOError all other errors
+                raise EM_FieldIOError(e.args[-1], "__readPortFreqsFromFilenames")
             else:
                 raise e

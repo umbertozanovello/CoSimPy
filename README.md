@@ -2,6 +2,15 @@
 
 CoSimPy is an open source Python library aiming to combine results from electromagnetic (EM) simulation with circuits analysis through a cosimulation environment.
 
+The library is built on three classes:
+* `S_Matrix` class : Management of S Matrix operations
+* `EM_Field` class : Management of Electromagnetic Field (EM) operations
+* `RF_Coil` class : Interface between S_Matrix and RF_Coil classes
+
+These three classes represent the core of CoSimPy and are included in a larger framework designed to manage custom exceptions and external contributions thorugh a testing pipeline involving  [pytest](https://docs.pytest.org/en/stable/contents.html) and [tox](https://tox.wiki/en/latest/). 
+
+![](./docs/images/framework.png)
+
 ## Summary
 
   - [Getting Started](#getting-started)
@@ -17,7 +26,7 @@ The library has been developed with Python 3.7 and successfully tested down to P
 
 ### Prerequisites
 
-The library uses the follwong additional packages:
+The library uses the following additional packages:
 
 - [numpy](https://numpy.org/) (>=1.15.2)
 - [matplotlib](https://matplotlib.org/) (>=3.4.0)
@@ -28,7 +37,7 @@ The package versions reported in brackets represent the oldest releases with whi
 
 ### Installing
 
-With [pip](https://pypi.org/project/pip/):
+With [pip](https://pypi.org/project/cosimpy/):
 ```
 pip install cosimpy
 ```
@@ -131,7 +140,7 @@ In the "CoSimPy-Demo.ipynb" script inside the "examples/cosimpy_demonstration" f
 
 ## Test
 
-For testing the library, [pytest](https://docs.pytest.org/en/6.2.x/) is required.<br>
+For testing the library, [pytest](https://docs.pytest.org/en/stable/contents.html) is required.<br>
 After installing CoSimPy, download the "test" folder and, from a terminal, execute:
 ```
 cd path_to_test_folder/test
@@ -163,6 +172,9 @@ If you find CoSimPy useful for your work, please consider to cite this [paper](h
 
 The library has been developed in the framework of the Researcher Mobility Grant (RMG) associated with the european project 17IND01 MIMAS. This RMG: 17IND01-RMG1 MIMAS has received funding from the EMPIR programme co-financed by the Participating States and from the European Union's Horizon 2020 research and innovation programme.
 
-[![](./docs/images/EMPIR_logo.jpg)](https://www.euramet.org/research-innovation/research-empir/)
+Maintenance of CoSimPy is made possible thanks to funds coming from the EPM STASIS project 21NRM05. The project (21NRM05 STASIS) has received funding from the European Partnership on Metrology, co-financed from the European Union's Horizon Europe Research and Innovation Programme and by the Participating States.
+
+[![](./docs/images/EPM_logo.jpg)](https://metpart.eu/)
 [![](./docs/images/MIMAS_logo.png)](https://www.ptb.de/mimas/home/)
+[![](./docs/images/STASIS_logo.png)](https://www.ptb.de/stasis/)
 

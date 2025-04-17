@@ -18,7 +18,7 @@ if packaging:
     from cosimpy import *
 else:
     COSIMPY_DIR = os.path.dirname(os.path.abspath(__file__)).split("/")
-    COSIMPY_DIR = '/'.join(COSIMPY_DIR[:-1]) + "/src"
+    COSIMPY_DIR = '/'.join(COSIMPY_DIR[:-1])# + "/src"
     sys.path.append(COSIMPY_DIR)
     from src.cosimpy.S_Matrix import *
     from src.cosimpy.EM_Field import *
@@ -36,6 +36,8 @@ test9 = True
 test10 = True
 test11 = True
 test12 = True
+test13 = True
+test14 = True
 
 testE1 = True
 testE2 = True
@@ -510,7 +512,58 @@ if test12:
         
         assert(np.isnan(em_field.e_field[:,:,:,2:6]).all())
         assert(np.isnan(em_field.b_field[:,:,:,2:6]).all())
+
+if test13:
+    @pytest.mark.slow
+    def test13():
+        """
+        TEST 13: Check EM_Field compVOP
+        """
         
+        e1 = np.random.rand(3,8,3,1) + 1j*np.random.rand(3,8,3,1)
+        e2 = np.random.rand(3,8,3,1) + 1j*np.random.rand(3,8,3,1)
+        e3 = np.random.rand(3,8,3,1) + 1j*np.random.rand(3,8,3,1)
+        e4 = np.random.rand(3,8,3,1) + 1j*np.random.rand(3,8,3,1)
+        e5 = np.random.rand(3,8,3,1) + 1j*np.random.rand(3,8,3,1)
+        
+        nPoints = [100,100,20]
+        e_field = np.concatenate((np.full((3,8,3,np.prod(nPoints)//5),e1),\
+                                  np.full((3,8,3,np.prod(nPoints)//5),e2),\
+                                      np.full((3,8,3,np.prod(nPoints)//5),e3),\
+                                          np.full((3,8,3,np.prod(nPoints)//5),e4),\
+                                              np.full((3,8,3,np.prod(nPoints)//5),e5)), axis=-1)
+        
+        frequencies = np.array([120e6,123e6,128e6])
+        
+        em_field = EM_Field(frequencies,nPoints, e_field = e_field)
+
+        A_mats, cluster_array = em_field.compVOP(128e6, 0.05, elCond_key=None, avg_rad=1)
+        
+        q1 = 1/50 * e1[2,:,:,0] @ e1[2,:,:,0].conj().T
+        q2 = 1/50 * e2[2,:,:,0] @ e2[2,:,:,0].conj().T
+        q3 = 1/50 * e3[2,:,:,0] @ e3[2,:,:,0].conj().T
+        q4 = 1/50 * e4[2,:,:,0] @ e4[2,:,:,0].conj().T
+        q5 = 1/50 * e5[2,:,:,0] @ e5[2,:,:,0].conj().T
+        
+        exp_Amats = np.concatenate([q1[None,...],q2[None,...],q3[None,...],q4[None,...],q5[None,...]], axis=0)
+        exp_Amats = exp_Amats[np.argsort(np.linalg.eigvalsh(exp_Amats)[:,-1])]
+        
+        assert((np.arange(5)==np.unique(cluster_array)).all())
+        assert(np.isclose(exp_Amats, A_mats[np.argsort(np.linalg.eigvalsh(A_mats)[:,-1])]).all())
+        
+if test14:
+    @pytest.mark.slow
+    def test14():
+        """
+        TEST 14: Check EM_Field import from CST
+        """
+        
+        directory_input = os.path.join(os.path.dirname(__file__),"filesForTests//FieldFromCST")
+        print(directory_input)
+        em_field = EM_Field.importFields_cst(directory_input, "MHz", "efield_<f>_port<p>.h5", "bfield_<f>_port<p>.h5", nPoints=None, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=True, imp_bfield=False, fileType = 'hdf5', col_ascii_order = 0, props={})
+        assert(em_field.nPorts == 4)
+        assert(em_field.frequencies == [123.2e6])
+
 if testE1:
     @pytest.mark.parametrize("s_input, f_input, z0_input",\
                              [(np.array([[0,1],[1,0]]), [123e6], [50,50]),\
@@ -624,17 +677,15 @@ if testE7:
             EM_Field(freqs, nPoints, b_field, None, props_input)
             
 if testE8:
-    @pytest.mark.parametrize("directory_input, freqs_input, nPorts_input, nPoints_input, imp_efield_input, imp_bfield_input",\
-                             [("./", ["123.2"], 4, None, True, False),\
-                              (None, ["123.20"], 4, None, True, False),\
-                                  (None, ["123.2"], 5, None, True, False),\
-                                      (None, ["123.2"], 4, [10,10], True, False),\
-                                          (None, ["123.2"], 4, None, False, False),\
-                                              (None, ["123.2"], 4, None, True, True),\
-                                                  (None, ["123.2"], 0, None, True, False),\
-                                                      (None, ["123.2"], 1.5, None, True, False)])
+    @pytest.mark.parametrize("directory_input, freqUnit_input, eFieldRefString_input, bFieldRefString_input, nPoints_input, imp_efield_input, imp_bfield_input",\
+                             [("./", "MHz", "efield_<f><p>.h5", "bfield_<f><p>.h5", None, True, False),\
+                              ("./", "MHz", "efield_<f>5<p>.h5", "bfield_<f>5<p>.h5", None, True, False),\
+                              ("./", "MHz", "efield_<f>.h5", "bfield_<f>.h5", None, True, False),\
+                              ("./", "MHz", "efield_<p>.h5", "bfield_<p>.h5", None, True, False),\
+                              (None, "MHz", "efield_<f>_port<p>.h5", "bfield_<f>_port<p>.h5", None, False, False),\
+                                    (None, "MHz", "efield_<f>_port<p>.h5", "bfield_<f>_port<p>.h5", [10,10], True, False)])
     @pytest.mark.slow
-    def testE8(directory_input, freqs_input, nPorts_input, nPoints_input, imp_efield_input, imp_bfield_input):
+    def testE8(directory_input, freqUnit_input, eFieldRefString_input, bFieldRefString_input, nPoints_input, imp_efield_input, imp_bfield_input):
         """
         TEST E8: Check EM_Field import from CST exceptions
         """
@@ -643,7 +694,7 @@ if testE8:
             directory_input = os.path.join(os.path.dirname(__file__),"filesForTests//FieldFromCST")
 
         with pytest.raises(EM_FieldError):
-            EM_Field.importFields_cst(directory_input, freqs_input, nPorts_input, nPoints=nPoints_input, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=imp_efield_input, imp_bfield=imp_bfield_input, fileType = 'hdf5', col_ascii_order = 0, props={})
+            EM_Field.importFields_cst(directory_input, freqUnit_input, eFieldRefString_input, bFieldRefString_input, nPoints=nPoints_input, Pinc_ref=1, b_multCoeff=1, pkORrms='pk', imp_efield=imp_efield_input, imp_bfield=imp_bfield_input, fileType = 'hdf5', col_ascii_order = 0, props={})
 
 if testE9:
     @pytest.mark.parametrize("directory_input, freqs_input, nPorts_input, imp_efield_input, imp_bfield_input",\
