@@ -28,10 +28,10 @@ The library has been developed with Python 3.7 and successfully tested down to P
 
 The library uses the following additional packages:
 
-- [numpy](https://numpy.org/) (>=1.15.2)
-- [matplotlib](https://matplotlib.org/) (>=3.4.0)
-- [h5py](https://www.h5py.org/) (>=2.8.0)
-- [scipy](https://www.scipy.org/) (>=1.1.0)
+- [numpy](https://numpy.org/) (>=2.0.0)
+- [matplotlib](https://matplotlib.org/) (>=3.9.0)
+- [h5py](https://www.h5py.org/) (>=3.1..0)
+- [scipy](https://www.scipy.org/) (>=1.14.0)
 
 The package versions reported in brackets represent the oldest releases with which the library has been succesfully tested.
 
