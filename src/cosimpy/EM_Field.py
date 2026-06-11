@@ -154,7 +154,7 @@ class EM_Field():
         if not isinstance(prop_key, str):
             raise EM_FieldError("prop_key has to be a string relevant to a key in the properties dictionary", "getProperty")
         if prop_key not in self.__props.keys():
-            raise EM_FieldPropertiesError("%s has not been found among the keys of the properties dictionary", "getProperty")
+            raise EM_FieldPropertiesError(f"{prop_key} has not been found among the keys of the properties dictionary", "getProperty")
         
         if prop_key == "idxs":
             return self.__props[prop_key]
@@ -260,15 +260,13 @@ class EM_Field():
             raise EM_FieldError("elCond_key has to be a string relevant to the key of the electrical conductivity in the properties dictionary", "spatialAverageSAR")
         if elCond_key not in self.__props.keys():
             raise EM_FieldPropertiesError("%s has not been found among the keys of the properties dictionary", "spatialAverageSAR")
-        
-        elCond = self.getProperty(elCond_key)
 
         if not isinstance(massDensity_key, str):
             raise EM_FieldError("massDensity_key has to be a string relevant to the key of the mass density in the properties dictionary", "spatialAverageSAR")
         if massDensity_key not in self.__props.keys():
             raise EM_FieldPropertiesError(f"{massDensity_key} has not been found among the keys of the properties dictionary", "spatialAverageSAR")
         
-        massDensity = self.getProperty(massDensity_key)
+        massDensity = self.getProperty(massDensity_key).astype(float)
         
         if backgroundIdx not in self.__props["idxs"]:
             raise EM_FieldPropertiesError("%d has not been found among the indexes stored in the 'idxs' key of the properties dictionary", "spatialAverageSAR")
@@ -304,7 +302,9 @@ class EM_Field():
             massDensity[self.__props["idxs"]==backgroundIdx] = np.nan # I set to nan density values in background voxels
         massArray = voxVols * massDensity.reshape(self.__nPoints,order='F')
 
-        localSARArray = self.compPowDens(elCond_key, p_inc)[f_idx].reshape(self.__nPoints,order='F')
+        localSARArray = self.compPowDens(elCond_key, p_inc)[f_idx].reshape(self.__nPoints,order='F') # W/m^3
+        localSARArray /= massDensity.reshape(self.__nPoints,order='F') # W/kg
+
         additionalBackground = np.array(additionalBackground)
         n_points = self.__nPoints + additionalBackground*2
 
