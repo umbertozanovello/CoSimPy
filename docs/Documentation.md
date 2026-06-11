@@ -1027,6 +1027,28 @@ Returns
 * S_Matrix : *S_Matrix* <br>
 3-port *S_Matrix*, of the E-like network defined over the frequency values listed in freqs. The impedances of the three ports are equal to those specified by the relevan method parameter
 
+#### sMatrixLatticeBalun(cls, S1,S2,S3,S4, z0=50)
+
+*class method* used to return an *S_Matrix* of a 2-port Lattuce Balun made of the S_Matrix instances passed as arguments and according to the figure below.
+
+Parameters
+
+* cls : *S_Matrix* class <br>
+* S1...4 : *S_Matrix* instances related to the four impedances in the above figure<br>
+* z0 : *int*, *float*, *list*, *numpy ndarray*, *optional* <br>
+port impedances. These can be given as a 2-element *list* or *numpy ndarray*. If all the ports share the same impedance value, an *int* or *float* value can be passed as parameter. Default is 50 ohm
+
+Returns
+
+* S_Matrix : *S_Matrix* <br>
+2-port *S_Matrix*, of the lattice balun defined over the same frequency values of the *S_Matrix* instances. The impedances of the two ports are equal to those specified by the relevant method parameter
+
+*Acknowledgments: Thanks to Leo Remillard (leoremil) for providing the code*
+
+<p align="center">
+<img src="./images/latticebalundiagram.png" alt="drawing" width="400"/>
+</p>
+
 #### `__movePort(cls, Smat, idx0, idx1)`
 
 private *class method* used to return an *S_Matrix* where the `Smat` port at index `idx0` is exchanged with the port at index `idx1`.

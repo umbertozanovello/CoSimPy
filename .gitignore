@@ -1,3 +1,4 @@
 cosimpy.code-workspace
 *__pycache__*
 *egg-info*
+build/

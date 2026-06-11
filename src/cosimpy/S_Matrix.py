@@ -1597,7 +1597,8 @@ class S_Matrix():
     
     
     @classmethod
-    def sMatrixDoubleE(cls, freqs, z0_1stPort=50):
+    def sMatrixDoubleE(cls, freqs,
+     z0_1stPort=50):
         S_MatrixFrequenciesError.check(freqs, "sMatrixDoubleE")
         S_MatrixPortImpedancesError.check(z0_1stPort,"sMatrixDoubleE", 1)
         
@@ -1613,6 +1614,45 @@ class S_Matrix():
         
         return cls(s_matrix,freqs,z0_1stPort)
     
+    @classmethod
+    def sMatrixLatticeBalun(cls, S1,S2,S3,S4, z0=50):
+        """
+        Code provided by Leo Remillard (leoremil)
+        """
+        
+        Ss = [S1,S2,S3,S4]
+        for i,Sa in enumerate(Ss):
+            
+            if not isinstance(Sa, cls):
+                raise S_MatrixError("S1, S2, S3 and S4 must be S_Matrix instances", "sMatrixLatticeBalun")
+            if Sa.nPorts != 1:
+                raise S_MatrixError("S1, S2, S3 and S4 must be one port S_Matrix instances", "sMatrixLatticeBalun")
+            for Sb in Ss[i:]:
+                if not np.array_equal(Sa.__f,Sb.__f):
+                    raise S_MatrixError("All the S matrices must be defined over the same frequency values", "sMatrixLatticeBalun")
+        
+        S_MatrixPortImpedancesError.check(z0,"sMatrixLatticeBalun", 2)        
+        
+
+        #Z parameters of each element in the lattice network
+        Z1 = S1.getZMatrix()
+        Z2 = S2.getZMatrix()
+        Z3 = S3.getZMatrix()
+        Z4 = S4.getZMatrix()
+
+        #Z matrix of the lattice network and S matrix allocation
+        Z = np.zeros((len(S1.frequencies),2,2),dtype=complex)
+        
+        #Z parameters as determined by circuit analysis.
+        Z[:,0,0] = ((Z1+Z2) * (Z3+Z4) / (Z1+Z2+Z3+Z4))[:,0,0] #Z11, balanced side
+        Z[:,0,1] = ((Z2*Z3 - Z1*Z4) / (Z1+Z2+Z3+Z4))[:,0,0] #Z12
+        Z[:,1,0] = Z[:,0,1] #Z21 = Z12 since it's reciprocal
+        Z[:,1,1] = ((Z1+Z3) * (Z2+Z4) / (Z1+Z2+Z3+Z4))[:,0,0] #Z22, unbalanced side 
+        
+        #Calculate the S matrix for the balun from the Z matrix
+        S = cls.fromZtoS(Z, S1.__f, z0)  
+        
+        return S
     
     @classmethod
     def __movePort(cls, Smat, idx0, idx1):
